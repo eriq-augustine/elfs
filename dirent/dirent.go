@@ -12,6 +12,7 @@ import (
 
 const (
    ID_LENGTH = 32
+   IV_LENGTH = 12  // Standard
 
    ROOT_ID = Id(0)
    ROOT_NAME = ""
@@ -24,6 +25,7 @@ type Id string;
 type Dirent struct {
    Id Id
    IsFile bool
+   IV []byte
    Owner user.Id
    Name string
    CreateTimestamp int64
@@ -40,6 +42,7 @@ func NewDir(id Id, owner user.Id, name string, groupPermissions []group.Permissi
    return &Dirent{
       Id: id,
       IsFile: false,
+      IV: util.GenIV(),
       Owner: owner,
       Name: name,
       CreateTimestamp: time.Now().Unix(),

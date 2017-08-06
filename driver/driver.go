@@ -47,7 +47,7 @@ type Driver interface {
    // Upsert a file.
    // The writer can stream in the clear bytes as they become available.
    // The writer will handle encryption and any metadata updates.
-   Put(file dirent.Id, clearbytes io.Writer) error;
+   Put(file dirent.Id, clearbytes io.Reader) error;
 
    // List a directory.
    List(dir dirent.Id) ([]*Dirent, error);
