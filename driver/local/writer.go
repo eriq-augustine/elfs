@@ -21,9 +21,9 @@ import (
 // All the metadata management will be left out since we could be writing the
 // FAT which itself does not have any metadata.
 // Returns: (file size, md5 hash (hex string), error).
-func (this *LocalDriver) write(clearbytes io.Reader, rawIV []byte, path string) (uint64, string, error) {
+func (this *LocalConnector) write(path string, blockCipher cipher.Block, rawIV []byte, clearbytes io.Reader) (uint64, string, error) {
    // TODO(eriq): Do we need to create a different GCM (AEAD) every time?
-   gcm, err := cipher.NewGCM(this.blockCipher);
+   gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
       return 0, "", err;
    }

@@ -17,7 +17,7 @@ import (
 // all in chunks of size IO_BLOCK_SIZE.
 // Note that the cleartext will be in checks of IO_BLOCK_SIZE,
 // but the cipertext read will be slightly larger.
-type EncryptedFileReader struct {
+type encryptedFileReader struct {
    gcm cipher.AEAD
    buffer []byte
    iv []byte
@@ -25,10 +25,8 @@ type EncryptedFileReader struct {
    done bool
 }
 
-func NewEncryptedFileReader(
-      blockCipher cipher.Block,
-      path string, rawIV []byte,
-      ) (*EncryptedFileReader, error) {
+func newEncryptedFileReader(path string,
+      blockCipher cipher.Block, rawIV []byte) (*encryptedFileReader, error) {
    // TODO(eriq): Do we need to create a different GCM (AEAD) every time?
    gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
@@ -41,7 +39,7 @@ func NewEncryptedFileReader(
       return nil, err;
    }
 
-   var rtn EncryptedFileReader = EncryptedFileReader{
+   var rtn encryptedFileReader = encryptedFileReader{
       gcm: gcm,
       // Allocate enough room for the ciphertext.
       buffer: make([]byte, 0, IO_BLOCK_SIZE + gcm.Overhead()),
@@ -54,13 +52,13 @@ func NewEncryptedFileReader(
    return &rtn, nil;
 }
 
-func (this *EncryptedFileReader) Read(outBuffer []byte) (int, error) {
+func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
    if (this.done) {
       return 0, io.EOF;
    }
 
    if (cap(outBuffer) < IO_BLOCK_SIZE) {
-      return 0, fmt.Errorf("Buffer for EncryptedFileReader is too small. Must be at least %d.", IO_BLOCK_SIZE);
+      return 0, fmt.Errorf("Buffer for encryptedFileReader is too small. Must be at least %d.", IO_BLOCK_SIZE);
    }
 
    // Resize the buffer (without allocating) to ensure we only read exactly what we want.
@@ -91,6 +89,6 @@ func (this *EncryptedFileReader) Read(outBuffer []byte) (int, error) {
    return len(outBuffer), nil;
 }
 
-func (this *EncryptedFileReader) Close() error {
+func (this *encryptedFileReader) Close() error {
    return this.fileReader.Close();
 }
