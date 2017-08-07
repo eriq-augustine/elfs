@@ -10,25 +10,6 @@ import (
    "github.com/eriq-augustine/s3efs/user"
 )
 
-// The unique name of the encrypted file.
-type Id string;
-
-// Anything that can be in a directory.
-type Dirent struct {
-   Id dirent.Id
-   IsFile bool
-   Owner user.Id
-   Name string
-   CreateTimestamp int64
-   ModTimestamp int64
-   AccessTimestamp int64
-   AccessCount uint
-   GroupPermissions []group.Permission
-   Size uint64 // bytes
-   Md5 string
-   Dir dirent.Id
-}
-
 type Driver interface {
    // FS operations
 
@@ -47,14 +28,22 @@ type Driver interface {
    // Upsert a file.
    // The writer can stream in the clear bytes as they become available.
    // The writer will handle encryption and any metadata updates.
-   Put(file dirent.Id, clearbytes io.Reader) error;
+   Put(user user.Id, name string, clearbytes io.Reader,
+         groupPermissions []group.Permission, parentDir dirent.Id) error;
+
+   // Fetch a dirent by name and parent.
+   // Will return nil if it does not exist.
+   FetchByName(name string, parent dirent.Id) *dirent.Dirent;
 
    // List a directory.
-   List(dir dirent.Id) ([]*Dirent, error);
+   List(dir dirent.Id) ([]*dirent.Dirent, error);
 
    // Remove a dirent.
    // If the dirent is ia directory, then it will be recursively removed.
    Remove(dirent dirent.Id) error;
+
+   // Move a dirent to another directory.
+   Move(dirent dirent.Id, newParent dirent.Id) error;
 
    // Permission Operations
 
@@ -104,4 +93,30 @@ type Driver interface {
    // Demote a member of the group to a regular group member.
    // Root only.
    DemoteUser(user user.Id, group group.Id) error;
+}
+
+// Errors
+
+type PermissionsError struct {
+   message string
+}
+
+func NewPermissionsError(message string) *PermissionsError {
+   return &PermissionsError{message};
+}
+
+func (this *PermissionsError) Error() string {
+   return "Permissions Error: " + this.message;
+}
+
+type IllegalOperationError struct {
+   message string
+}
+
+func NewIllegalOperationError(message string) *IllegalOperationError {
+   return &IllegalOperationError{message};
+}
+
+func (this *IllegalOperationError) Error() string {
+   return "Illegal Operation Error: " + this.message;
 }

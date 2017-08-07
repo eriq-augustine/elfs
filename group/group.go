@@ -22,8 +22,8 @@ type Permission struct {
    Write bool
 }
 
-// The admins and normal users are disjoint, but admins will always have at least the normal
-// user permissions.
+// User permissions.
+// The admins are a subset of users.
 type Group struct {
    Id Id
    Name string

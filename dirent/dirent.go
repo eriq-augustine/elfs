@@ -3,8 +3,6 @@ package dirent;
 // All the key types.
 
 import (
-   "time"
-
    "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
    "github.com/eriq-augustine/s3efs/util"
@@ -14,7 +12,9 @@ const (
    ID_LENGTH = 32
    IV_LENGTH = 12  // Standard
 
-   ROOT_ID = Id(0)
+   EMPTY_ID = Id("")
+
+   ROOT_ID = EMPTY_ID
    ROOT_NAME = ""
 )
 
@@ -35,24 +35,44 @@ type Dirent struct {
    GroupPermissions []group.Permission
    Size uint64 // bytes
    Md5 string
-   Dir Id
+   Parent Id
 }
 
-func NewDir(id Id, owner user.Id, name string, groupPermissions []group.Permission, parent Id) *Dirent {
+func NewDir(id Id, owner user.Id, name string,
+      groupPermissions []group.Permission, parent Id, timestamp int64) *Dirent {
    return &Dirent{
       Id: id,
       IsFile: false,
       IV: util.GenIV(),
       Owner: owner,
       Name: name,
-      CreateTimestamp: time.Now().Unix(),
-      ModTimestamp: time.Now().Unix(),
-      AccessTimestamp: time.Now().Unix(),
+      CreateTimestamp: timestamp,
+      ModTimestamp: timestamp,
+      AccessTimestamp: timestamp,
       AccessCount: 0,
       GroupPermissions: make([]group.Permission, 0),
       Size: 0,
       Md5: "",
-      Dir: parent,
+      Parent: parent,
+   };
+}
+
+func NewFile(id Id, owner user.Id, name string,
+      groupPermissions []group.Permission, parent Id, timestamp int64) *Dirent {
+   return &Dirent{
+      Id: id,
+      IsFile: true,
+      IV: util.GenIV(),
+      Owner: owner,
+      Name: name,
+      CreateTimestamp: timestamp,
+      ModTimestamp: timestamp,
+      AccessTimestamp: timestamp,
+      AccessCount: 0,
+      GroupPermissions: groupPermissions,
+      Size: 0,
+      Md5: "",
+      Parent: parent,
    };
 }
 
