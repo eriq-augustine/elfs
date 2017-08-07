@@ -1,11 +1,24 @@
 package driver;
 
-// Helpers specifically for permissions.
+// Operations (and helpers) that deal with file permissions.
 
 import (
    "github.com/eriq-augustine/s3efs/dirent"
+   "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
 )
+
+func (this *Driver) ChangeOwner(dirent dirent.Id, newOnwer user.Id) error {
+   return nil;
+}
+
+func (this *Driver) RemoveGroupAccess(dirent dirent.Id, group group.Id) error {
+   return nil;
+}
+
+func (this *Driver) PutGroupAccess(dirent dirent.Id, permissions group.Permission) error {
+   return nil;
+}
 
 
 // To create a file, we only need write on the parent directory.
