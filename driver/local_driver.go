@@ -32,7 +32,7 @@ const (
 // TODO(eriq): Need to async operations and keep track of what files currently have read or writes.
 
 type LocalDriver struct {
-   cipherBlock cipher.Block
+   blockCipher cipher.Block
    path string
    fat map[dirent.Id]*dirent.Dirent
    users map[user.Id]*user.User
@@ -41,13 +41,13 @@ type LocalDriver struct {
 
 // TODO(eriq): This should be returning a Driver (once we implemented all the methods).
 func NewLocalDriver(key []byte, path string) (*LocalDriver, error) {
-   cipherBlock, err := aes.NewCipher(key)
+   blockCipher, err := aes.NewCipher(key)
    if err != nil {
       return nil, err;
    }
 
    var driver LocalDriver = LocalDriver{
-      cipherBlock: cipherBlock,
+      blockCipher: blockCipher,
       path: path,
    };
 
@@ -89,9 +89,22 @@ func (this *LocalDriver) Sync() error {
    return nil;
 }
 
-func (this *LocalDriver) Read(file dirent.Id) (io.Reader, error) {
-   // TODO(eriq)
-   return nil, nil;
+func (this *LocalDriver) Read(user user.Id, file dirent.Id) (io.ReadCloser, error) {
+   fileInfo, ok := this.fat[file];
+   if (!ok) {
+      return nil, NewIllegalOperationError("Cannot read non-existant file: " + string(file));
+   }
+
+   err := this.checkReadPermissions(user, fileInfo);
+   if (err != nil) {
+      return nil, err;
+   }
+
+   if (!fileInfo.IsFile) {
+      return nil, NewIllegalOperationError("Cannot read a dir, use List() instead.");
+   }
+
+   return NewEncryptedFileReader(this.blockCipher, this.getDiskPath(fileInfo.Id), fileInfo.IV);
 }
 
 func (this *LocalDriver) Put(
@@ -255,7 +268,7 @@ func (this *LocalDriver) getDiskPath(dirent dirent.Id) string {
 // Returns: (file size, md5 hash (hex string), error).
 func (this *LocalDriver) write(clearbytes io.Reader, rawIV []byte, path string) (uint64, string, error) {
    // TODO(eriq): Do we need to create a different GCM (AEAD) every time?
-   gcm, err := cipher.NewGCM(this.cipherBlock);
+   gcm, err := cipher.NewGCM(this.blockCipher);
    if err != nil {
       return 0, "", err;
    }
@@ -314,6 +327,88 @@ func (this *LocalDriver) write(clearbytes io.Reader, rawIV []byte, path string) 
    return fileSize, fmt.Sprintf("%x", m5dHash.Sum(nil)), nil;
 }
 
+// A Reader that will read an encrypted file, decrypt them, and return the cleartext
+// all in chunks of size IO_BLOCK_SIZE.
+// Note that the cleartext will be in checks of IO_BLOCK_SIZE,
+// but the cipertext read will be slightly larger.
+type EncryptedFileReader struct {
+   gcm cipher.AEAD
+   buffer []byte
+   iv []byte
+   fileReader *os.File
+   done bool
+}
+
+func NewEncryptedFileReader(
+      blockCipher cipher.Block,
+      path string, rawIV []byte,
+      ) (*EncryptedFileReader, error) {
+   // TODO(eriq): Do we need to create a different GCM (AEAD) every time?
+   gcm, err := cipher.NewGCM(blockCipher);
+   if err != nil {
+      return nil, err;
+   }
+
+   fileReader, err := os.Open(path);
+   if (err != nil) {
+      golog.ErrorE("Unable to open file on disk at: " + path, err);
+      return nil, err;
+   }
+
+   var rtn EncryptedFileReader = EncryptedFileReader{
+      gcm: gcm,
+      // Allocate enough room for the ciphertext.
+      buffer: make([]byte, 0, IO_BLOCK_SIZE + gcm.Overhead()),
+      // Make a copy of the IV since we will be incrementing it for each chunk.
+      iv: append([]byte(nil), rawIV...),
+      fileReader: fileReader,
+      done: false,
+   };
+
+   return &rtn, nil;
+}
+
+func (this *EncryptedFileReader) Read(outBuffer []byte) (int, error) {
+   if (this.done) {
+      return 0, io.EOF;
+   }
+
+   if (cap(outBuffer) < IO_BLOCK_SIZE) {
+      return 0, fmt.Errorf("Buffer for EncryptedFileReader is too small. Must be at least %d.", IO_BLOCK_SIZE);
+   }
+
+   // Resize the buffer (without allocating) to ensure we only read exactly what we want.
+   this.buffer = this.buffer[0:IO_BLOCK_SIZE + this.gcm.Overhead()];
+
+   // Get the ciphertext.
+   _, err := this.fileReader.Read(this.buffer);
+   if (err != nil) {
+      if (err != io.EOF) {
+         return 0, err;
+      }
+
+      this.done = true;
+   }
+
+   // Resize the destination so we can reliably check the output size.
+   outBuffer = outBuffer[0:0];
+
+   _, err = this.gcm.Open(outBuffer, this.iv, this.buffer, nil);
+   if (err != nil) {
+      golog.ErrorE("Failed to decrypt file.", err);
+      return 0, err;
+   }
+
+   // Prepare the IV for the next decrypt.
+   util.IncrementBytes(this.iv);
+
+   return len(outBuffer), nil;
+}
+
+func (this *EncryptedFileReader) Close() error {
+   return this.fileReader.Close();
+}
+
 // Helpers specifically for permissions.
 
 // To create a file, we only need write on the parent directory.
@@ -329,6 +424,15 @@ func (this *LocalDriver) checkCreatePermissions(user user.Id, parentDir dirent.I
 func (this *LocalDriver) checkUpdatePermissions(user user.Id, fileInfo *dirent.Dirent) error {
    if (!fileInfo.CanWrite(user, this.groups)) {
       return NewPermissionsError("Cannot update a file you cannot write to.");
+   }
+
+   return nil;
+}
+
+// Simple read check.
+func (this *LocalDriver) checkReadPermissions(user user.Id, fileInfo *dirent.Dirent) error {
+   if (!fileInfo.CanRead(user, this.groups)) {
+      return NewPermissionsError("No read premissions.");
    }
 
    return nil;

@@ -21,7 +21,7 @@ type Driver interface {
 
    // Dirent Operations
 
-   // Get a readter that will read the file of the given name.
+   // Get a reader that will read the file of the given name.
    // The reader will handle decryption and the resulting bytes will be cleartext.
    Read(file dirent.Id) (io.Reader, error);
 

@@ -34,3 +34,29 @@ func (this *Dirent) CanWrite(user user.Id, groups map[group.Id]*group.Group) boo
 
    return false;
 }
+
+// Can the specified user read the dirent.
+func (this *Dirent) CanRead(user user.Id, groups map[group.Id]*group.Group) bool {
+   if (this.Owner == user) {
+      return true;
+   }
+
+   for _, groupPermission := range(this.GroupPermissions) {
+      if (!groupPermission.Read) {
+         continue;
+      }
+
+      group, ok := groups[groupPermission.GroupId];
+      if (!ok) {
+         golog.Warn(fmt.Sprintf("Orphaned group permission found. Dirent: %s, Group: %d.",
+               this.Id, groupPermission.GroupId));
+         continue;
+      }
+
+      if (group.Users.Contains(user)) {
+         return true;
+      }
+   }
+
+   return false;
+}
