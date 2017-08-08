@@ -26,7 +26,17 @@ func (this *Driver) Read(user user.Id, file dirent.Id) (io.ReadCloser, error) {
       return nil, NewIllegalOperationError("Cannot read a dir, use List() instead.");
    }
 
-   return this.connector.GetEncryptedReader(fileInfo, this.blockCipher);
+   reader, err := this.connector.GetEncryptedReader(fileInfo, this.blockCipher);
+   if (err != nil) {
+      return nil, err;
+   }
+
+   // Update metadata.
+   fileInfo.AccessTimestamp = time.Now().Unix();
+   fileInfo.AccessCount++;
+   this.cacheDirent(fileInfo);
+
+   return reader, nil;
 }
 
 func (this *Driver) Put(

@@ -17,3 +17,11 @@ func (this *LocalConnector) getDiskPath(dirent *dirent.Dirent) string {
 
    return path.Join(this.path, dirent.Name);
 }
+
+func (this *LocalConnector) getMetadataPath(metadataId string) string {
+   if (metadataId == "") {
+      golog.Panic("Cannot get path for empty metadata.");
+   }
+
+   return path.Join(this.path, metadataId);
+}

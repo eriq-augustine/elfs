@@ -19,6 +19,8 @@ type Connector interface {
    PrepareStorage() error
    // Get a reader that transparently handles all decryption.
    GetEncryptedReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (io.ReadCloser, error)
+   // Metadata may be stored in a different way than normal files.
+   GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (io.ReadCloser, error)
    // Write out an encrypted file from cleartext bytes,
    // Manipulate NO metatdata.
    // Returns: (file size (cleartext), md5 hash (of cleartext as a hex string), error)
@@ -33,6 +35,8 @@ type Connector interface {
 type Driver struct {
    connector Connector
    blockCipher cipher.Block
+   // IV for metadata tables.
+   iv []byte
    fat map[dirent.Id]*dirent.Dirent
    users map[user.Id]*user.User
    groups map[group.Id]*group.Group
@@ -42,7 +46,7 @@ type Driver struct {
 // Normally you will want to get a storage specific driver, like a NewLocalDriver.
 // If you need a new filesystem, you should call CreateFilesystem().
 // If you want to load up an existing filesystem, then you should call SyncFromDisk().
-func NewDriver(key []byte, connector Connector) (*Driver, error) {
+func NewDriver(key []byte, iv []byte, connector Connector) (*Driver, error) {
    blockCipher, err := aes.NewCipher(key)
    if err != nil {
       return nil, err;
@@ -51,6 +55,7 @@ func NewDriver(key []byte, connector Connector) (*Driver, error) {
    var driver Driver = Driver{
       connector: connector,
       blockCipher: blockCipher,
+      iv: iv,
       fat: make(map[dirent.Id]*dirent.Dirent),
       users: make(map[user.Id]*user.User),
       groups: make(map[group.Id]*group.Group),

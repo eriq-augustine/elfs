@@ -36,7 +36,7 @@ type LocalConnector struct {
    path string
 }
 
-func NewLocalDriver(key []byte, path string) (*driver.Driver, error) {
+func NewLocalDriver(key []byte, iv []byte, path string) (*driver.Driver, error) {
    activeConnectionsLock.Lock();
    defer activeConnectionsLock.Unlock();
 
@@ -56,12 +56,17 @@ func NewLocalDriver(key []byte, path string) (*driver.Driver, error) {
       path: path,
    };
 
-   return driver.NewDriver(key, &connector);
+   return driver.NewDriver(key, iv, &connector);
 }
 
 func (this *LocalConnector) PrepareStorage() error {
    return os.MkdirAll(this.path, 0700);
 }
+
+func (this *LocalConnector) GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (io.ReadCloser, error) {
+   return newEncryptedFileReader(this.getMetadataPath(metadataId), blockCipher, iv);
+}
+
 
 func (this *LocalConnector) GetEncryptedReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (io.ReadCloser, error) {
    return newEncryptedFileReader(this.getDiskPath(fileInfo), blockCipher, fileInfo.IV);

@@ -5,7 +5,7 @@ package driver;
 import (
    "time"
 
-   "github.com/eriq-augustine/golog"
+   "github.com/pkg/errors"
 
    "github.com/eriq-augustine/s3efs/dirent"
    "github.com/eriq-augustine/s3efs/group"
@@ -22,8 +22,7 @@ func (this *Driver) CreateFilesystem(rootEmail string, rootPasshash string) erro
 
    rootUser, err := user.New(user.ROOT_ID, rootPasshash, user.ROOT_NAME, rootEmail);
    if (err != nil) {
-      golog.ErrorE("Could not create root user.", err);
-      return err;
+      return errors.Wrap(err, "Could not create root user.");
    }
 
    this.users[rootUser.Id] = rootUser;
@@ -40,17 +39,28 @@ func (this *Driver) CreateFilesystem(rootEmail string, rootPasshash string) erro
    return nil;
 }
 
+// Read all the metadata from disk into memory.
+// This should only be done once when the driver initializes.
 func (this *Driver) SyncFromDisk() error {
-   // TODO(eriq)
+   err := this.readFat();
+   if (err != nil) {
+      return errors.Wrap(err, "Could not read FAT");
+   }
+
+   err = this.readUsers();
+   if (err != nil) {
+      return errors.Wrap(err, "Could not read users");
+   }
+
+   err = this.readGroups();
+   if (err != nil) {
+      return errors.Wrap(err, "Could not read groups");
+   }
+
    return nil;
 }
 
 func (this *Driver) SyncToDisk() error {
-   // TODO(eriq)
+   // TODO(eriq): fat, users, groups
    return nil;
-}
-
-// Put this dirent in the semi-durable cache.
-func (this *Driver) cacheDirent(direntInfo *dirent.Dirent) {
-   // TODO(eriq)
 }
