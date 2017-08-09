@@ -34,6 +34,8 @@ type Connector interface {
 
 // TODO(eriq): Need to async operations and keep track of what files currently have read or writes.
 
+// TODO(eriq): Maintain a structure that maintains the directory structure for name lookups and ls.
+
 type Driver struct {
    connector Connector
    blockCipher cipher.Block

@@ -4,11 +4,10 @@ package local;
 
 import (
    "crypto/cipher"
-   "fmt"
    "io"
    "os"
 
-   "github.com/eriq-augustine/golog"
+   "github.com/pkg/errors"
 
    "github.com/eriq-augustine/s3efs/util"
 )
@@ -35,8 +34,7 @@ func newEncryptedFileReader(path string,
 
    fileReader, err := os.Open(path);
    if (err != nil) {
-      golog.ErrorE("Unable to open file on disk at: " + path, err);
-      return nil, err;
+      return nil, errors.Wrap(err, "Unable to open file on disk at: " + path);
    }
 
    var rtn encryptedFileReader = encryptedFileReader{
@@ -58,14 +56,14 @@ func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
    }
 
    if (cap(outBuffer) < IO_BLOCK_SIZE) {
-      return 0, fmt.Errorf("Buffer for encryptedFileReader is too small. Must be at least %d.", IO_BLOCK_SIZE);
+      return 0, errors.Errorf("Buffer for encryptedFileReader is too small. Must be at least %d.", IO_BLOCK_SIZE);
    }
 
    // Resize the buffer (without allocating) to ensure we only read exactly what we want.
    this.buffer = this.buffer[0:IO_BLOCK_SIZE + this.gcm.Overhead()];
 
    // Get the ciphertext.
-   _, err := this.fileReader.Read(this.buffer);
+   readSize, err := this.fileReader.Read(this.buffer);
    if (err != nil) {
       if (err != io.EOF) {
          return 0, err;
@@ -74,10 +72,14 @@ func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
       this.done = true;
    }
 
+   if (readSize == 0) {
+      return 0, io.EOF;
+   }
+
    // Reuse the outBuffer's memory.
-   outBuffer, err = this.gcm.Open(outBuffer[:0], this.iv, this.buffer, nil);
+   outBuffer, err = this.gcm.Open(outBuffer[:0], this.iv, this.buffer[0:readSize], nil);
    if (err != nil) {
-      golog.ErrorE("Failed to decrypt file.", err);
+      errors.Wrap(err, "Failed to decrypt file.");
       return 0, err;
    }
 

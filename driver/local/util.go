@@ -10,12 +10,12 @@ import (
    "github.com/eriq-augustine/s3efs/dirent"
 )
 
-func (this *LocalConnector) getDiskPath(dirent *dirent.Dirent) string {
-   if (dirent == nil) {
+func (this *LocalConnector) getDiskPath(direntInfo *dirent.Dirent) string {
+   if (direntInfo == nil) {
       golog.Panic("Cannot get path for nil dirent.");
    }
 
-   return path.Join(this.path, dirent.Name);
+   return path.Join(this.path, string(direntInfo.Id));
 }
 
 func (this *LocalConnector) getMetadataPath(metadataId string) string {

@@ -2,6 +2,8 @@ package util;
 
 import (
    "crypto/rand"
+   "crypto/sha256"
+   "fmt"
 
    "github.com/eriq-augustine/golog"
 )
@@ -42,4 +44,9 @@ func GenAESKey() []byte {
 
 func GenIV() []byte {
    return GenBytes(IV_LENGTH);
+}
+
+// Hash a string and get back the hex string.
+func ShaHash(data string) string {
+   return fmt.Sprintf("%x", sha256.Sum256([]byte(data)));
 }

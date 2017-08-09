@@ -131,6 +131,7 @@ func (this *encryptedFileWriter) writeChunks() error {
 
       // Use the shared buffer's memory.
       cipherText := this.gcm.Seal(this.ciphertextBuffer, this.iv, data, nil);
+
       _, err := this.fileWriter.Write(cipherText);
       if (err != nil) {
          return errors.Wrap(err, "Failed to write file block");

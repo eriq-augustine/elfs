@@ -102,7 +102,7 @@ func (this *LocalConnector) Write(fileInfo *dirent.Dirent, blockCipher cipher.Bl
       }
 
       if (readSize > 0) {
-         _, err = writer.Write(data);
+         _, err = writer.Write(data[0:readSize]);
          if (err != nil) {
             return 0, "", errors.Wrap(err, "Failed to write.");
          }
