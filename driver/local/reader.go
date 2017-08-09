@@ -74,10 +74,8 @@ func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
       this.done = true;
    }
 
-   // Resize the destination so we can reliably check the output size.
-   outBuffer = outBuffer[:0];
-
-   _, err = this.gcm.Open(outBuffer, this.iv, this.buffer, nil);
+   // Reuse the outBuffer's memory.
+   outBuffer, err = this.gcm.Open(outBuffer[:0], this.iv, this.buffer, nil);
    if (err != nil) {
       golog.ErrorE("Failed to decrypt file.", err);
       return 0, err;

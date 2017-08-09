@@ -36,6 +36,10 @@ func GenKey(length int) []byte {
    return GenBytes(length);
 }
 
+func GenAESKey() []byte {
+   return GenBytes(AES_KEY_LENGTH);
+}
+
 func GenIV() []byte {
    return GenBytes(IV_LENGTH);
 }

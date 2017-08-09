@@ -61,6 +61,20 @@ func (this *Driver) SyncFromDisk() error {
 }
 
 func (this *Driver) SyncToDisk() error {
-   // TODO(eriq): fat, users, groups
+   err := this.writeFat();
+   if (err != nil) {
+      return errors.Wrap(err, "Could not write FAT");
+   }
+
+   err = this.writeUsers();
+   if (err != nil) {
+      return errors.Wrap(err, "Could not write users");
+   }
+
+   err = this.writeGroups();
+   if (err != nil) {
+      return errors.Wrap(err, "Could not write groups");
+   }
+
    return nil;
 }

@@ -69,7 +69,6 @@ func newEncryptedFileWriter(path string,
    if (err != nil) {
       return nil, errors.Wrap(err, "Unable to create file on disk at: " + path);
    }
-   defer fileWriter.Close();
 
    err = fileWriter.Chmod(0600);
    if (err != nil) {
@@ -110,6 +109,11 @@ func (this *encryptedFileWriter) Write(data []byte) (int, error) {
 }
 
 func (this *encryptedFileWriter) writeChunks() error {
+   // We don't have enough to write yet.
+   if (len(this.cleartextBuffer) < IO_BLOCK_SIZE && !this.done) {
+      return nil;
+   }
+
    // Keep writing as many chunks as we have data for.
    // If we are done, then write the final chunk.
    for (len(this.cleartextBuffer) >= IO_BLOCK_SIZE || (this.done && len(this.cleartextBuffer) > 0)) {
@@ -125,9 +129,9 @@ func (this *encryptedFileWriter) writeChunks() error {
       this.fileSize += uint64(writeSize);
       this.md5Hash.Write(data);
 
-      // Make sure to reset the ciphertext buffer (destination).
-      this.gcm.Seal(this.ciphertextBuffer[:0], this.iv, data, nil);
-      _, err := this.fileWriter.Write(this.ciphertextBuffer);
+      // Use the shared buffer's memory.
+      cipherText := this.gcm.Seal(this.ciphertextBuffer, this.iv, data, nil);
+      _, err := this.fileWriter.Write(cipherText);
       if (err != nil) {
          return errors.Wrap(err, "Failed to write file block");
       }

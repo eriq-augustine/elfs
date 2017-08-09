@@ -36,7 +36,7 @@ type LocalConnector struct {
    path string
 }
 
-func NewLocalDriver(key []byte, iv []byte, path string) (*driver.Driver, error) {
+func NewDriver(key []byte, iv []byte, path string) (*driver.Driver, error) {
    activeConnectionsLock.Lock();
    defer activeConnectionsLock.Unlock();
 
