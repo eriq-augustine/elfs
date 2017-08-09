@@ -18,7 +18,6 @@ type User struct {
    Id Id
    Passhash string
    Name string
-   Email string
 }
 
 func New(id Id, weakhash string, name string, email string) (*User, error) {
@@ -32,7 +31,6 @@ func New(id Id, weakhash string, name string, email string) (*User, error) {
       Id: id,
       Passhash: string(bcryptHash),
       Name: name,
-      Email: email,
    };
 
    return &user, nil;

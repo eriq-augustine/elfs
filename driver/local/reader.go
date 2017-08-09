@@ -13,7 +13,7 @@ import (
    "github.com/eriq-augustine/s3efs/util"
 )
 
-// A Reader that will read an encrypted file, decrypt them, and return the cleartext
+// A ReadCloser that will read an encrypted file, decrypt them, and return the cleartext
 // all in chunks of size IO_BLOCK_SIZE.
 // Note that the cleartext will be in checks of IO_BLOCK_SIZE,
 // but the cipertext read will be slightly larger.
@@ -75,7 +75,7 @@ func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
    }
 
    // Resize the destination so we can reliably check the output size.
-   outBuffer = outBuffer[0:0];
+   outBuffer = outBuffer[:0];
 
    _, err = this.gcm.Open(outBuffer, this.iv, this.buffer, nil);
    if (err != nil) {

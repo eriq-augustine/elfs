@@ -3,6 +3,8 @@ package driver;
 // Helpers that deal only with metadata (fat, users, and groups).
 
 import (
+   "github.com/eriq-augustine/s3efs/dirent"
+   /*
    "encoding/json"
    "fmt"
 
@@ -11,6 +13,7 @@ import (
    "github.com/eriq-augustine/s3efs/dirent"
    "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
+   */
 )
 
 const (
@@ -22,11 +25,11 @@ const (
    GROUPS_ID = "groups"
 )
 
-// Metadata for the metadata files.
-type metaMetadata struct {
-   Version int
-}
+func (this *Driver) readFat() error { return nil; }
+func (this *Driver) readUsers() error { return nil; }
+func (this *Driver) readGroups() error { return nil; }
 
+/*
 // Read the full fat into memory.
 func (this *Driver) readFat() error {
    reader, err := this.connector.GetMetadataReader(FAT_ID, this.blockCipher, this.iv);
@@ -131,6 +134,48 @@ func (this *Driver) readGroups() error {
       this.groups[entry.Id] = &entry;
    }
 }
+
+// TODO(eriq): I don't like holding the JSON in memory.
+//  I would rather stream it like the read functions.
+
+// Write the full fat to disk.
+func (this *Driver) writeFat() error {
+   
+
+
+   reader, err := this.connector.GetMetadataReader(FAT_ID, this.blockCipher, this.iv);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to get reader for FAT");
+   }
+
+   var decoder *json.Decoder = json.NewDecoder(reader);
+
+   var metadata metaMetadata;
+   err = decoder.Decode(&metadata);
+   if (err != nil) {
+      return errors.Wrap(err, "Could not decode FAT metadata.");
+   }
+
+   if (metadata.Version != FORMAT_VERSION) {
+      return errors.WithStack(NewIllegalOperationError(fmt.Sprintf(
+            "Mismatch in FAT version. Expected: %d, Found: %d", FORMAT_VERSION, metadata.Version)));
+   }
+
+   // Clear the existing fat.
+   this.fat = make(map[dirent.Id]*dirent.Dirent);
+
+   // Read all the dirents.
+   for {
+      var entry dirent.Dirent;
+      err = decoder.Decode(&entry);
+      if (err != nil) {
+         return errors.Wrap(err, "Failed to read dirent.");
+      }
+
+      this.fat[entry.Id] = &entry;
+   }
+}
+*/
 
 // Put this dirent in the semi-durable cache.
 func (this *Driver) cacheDirent(direntInfo *dirent.Dirent) {
