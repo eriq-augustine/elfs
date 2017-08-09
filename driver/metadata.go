@@ -50,7 +50,18 @@ func (this *Driver) readFat() error {
       this.fat[entry.Id] = &entry;
    }
 
-   return reader.Close();
+   err = reader.Close();
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to close fat reader.");
+   }
+
+   // Build up the directory tree.
+   this.root, err = dirent.BuildTree(this.fat);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to build the dirent tree");
+   }
+
+   return nil;
 }
 
 // Write the full fat to disk.

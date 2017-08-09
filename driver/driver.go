@@ -34,7 +34,7 @@ type Connector interface {
 
 // TODO(eriq): Need to async operations and keep track of what files currently have read or writes.
 
-// TODO(eriq): Maintain a structure that maintains the directory structure for name lookups and ls.
+// TODO(eriq): Make sire that the directory structure (root) is maintained on all write commands.
 
 type Driver struct {
    connector Connector
@@ -44,6 +44,9 @@ type Driver struct {
    fat map[dirent.Id]*dirent.Dirent
    users map[user.Id]*user.User
    groups map[group.Id]*group.Group
+   // A tree that contains every dirent (id).
+   // We will use this to resolve paths.
+   root *dirent.Node
 }
 
 // Get a new, uninitialized driver.
@@ -63,6 +66,7 @@ func NewDriver(key []byte, iv []byte, connector Connector) (*Driver, error) {
       fat: make(map[dirent.Id]*dirent.Dirent),
       users: make(map[user.Id]*user.User),
       groups: make(map[group.Id]*group.Group),
+      root: nil,
    };
 
    return &driver, nil;

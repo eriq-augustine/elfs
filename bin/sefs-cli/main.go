@@ -223,5 +223,6 @@ func login(fsDriver *driver.Driver, args []string) error {
 }
 
 func ls(fsDriver *driver.Driver, args []string) error {
+   // TODO(eriq): context path?
    return errors.New("Operation not implemented.");
 }

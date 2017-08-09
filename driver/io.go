@@ -6,6 +6,8 @@ import (
    "io"
    "time"
 
+   "github.com/pkg/errors"
+
    "github.com/eriq-augustine/s3efs/dirent"
    "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
@@ -60,10 +62,13 @@ func (this *Driver) Put(
    var operationTimestamp int64 = time.Now().Unix();
 
    var fileInfo *dirent.Dirent = this.FetchByName(name, parentDir);
+   var newFile bool;
 
    // Create or update?
    if (fileInfo == nil) {
       // Create
+      newFile = true;
+
       err := this.checkCreatePermissions(user, parentDir);
       if (err != nil) {
          return err;
@@ -72,9 +77,15 @@ func (this *Driver) Put(
       fileInfo = dirent.NewFile(this.getNewDirentId(), user, name, groupPermissions, parentDir, operationTimestamp);
    } else {
       // Update
+      newFile = false;
+
       err := this.checkUpdatePermissions(user, fileInfo);
       if (err != nil) {
          return err;
+      }
+
+      if (!fileInfo.IsFile) {
+         return errors.WithStack(NewIllegalOperationError("Put cannot write a directory, do you mean to MkDir()?"));
       }
 
       if (parentDir != fileInfo.Parent) {
@@ -101,6 +112,11 @@ func (this *Driver) Put(
    // If this file is new, we need to make sure it is in that memory-FAT.
    this.fat[fileInfo.Id] = fileInfo;
 
+   // Update the directory tree if this is a new file.
+   if (newFile) {
+      this.root.AddNode(this.fat, fileInfo);
+   }
+
    this.cacheDirent(fileInfo);
 
    return nil;
@@ -110,8 +126,37 @@ func (this *Driver) FetchByName(name string, parent dirent.Id) *dirent.Dirent {
    return nil;
 }
 
-func (this *Driver) List(dir dirent.Id) ([]*dirent.Dirent, error) {
-   return nil, nil;
+func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) {
+   dirInfo, ok := this.fat[dir];
+   if (!ok) {
+      return nil, NewIllegalOperationError("Cannot list non-existant dir: " + string(dir));
+   }
+
+   err := this.checkReadPermissions(user, dirInfo);
+   if (err != nil) {
+      return nil, err;
+   }
+
+   if (dirInfo.IsFile) {
+      return nil, NewIllegalOperationError("Cannot list a file, use Read() instead.");
+   }
+
+   path, err := dirent.GetPath(this.fat, dir);
+   if (err != nil) {
+      return nil, errors.Wrap(err, "Failed to get path for " + string(dir));
+   }
+
+   node, err := this.root.GetNode(path);
+   if (err != nil) {
+      return nil, errors.Wrap(err, "Failed to get node for " + string(dir));
+   }
+
+   var dirents []*dirent.Dirent = make([]*dirent.Dirent, 0, len(node.Children));
+   for _, child := range(node.Children) {
+      dirents = append(dirents, this.fat[child.Id]);
+   }
+
+   return dirents, nil;
 }
 
 func (this *Driver) Remove(dirent dirent.Id) error {
