@@ -27,7 +27,7 @@ import (
 type encryptedFileWriter struct {
    gcm cipher.AEAD
    // We need to keep the original slice around so we can resize without reallocating.
-   // We will be reslicing the cleattextBuffer so we can encrypt in chunks.
+   // We will be reslicing the cleartextBuffer so we can encrypt in chunks.
    // Any remaining aount will need to be moved back to the beginning,
    // but without a copy we do not know where the beginning of the array is.
    originalCleartextBuffer []byte

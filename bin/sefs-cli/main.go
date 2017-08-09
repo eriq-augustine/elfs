@@ -47,6 +47,13 @@ func main() {
       panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to get local driver")));
    }
 
+   // Try to init the filesystem from any existing metadata.
+   err = fsDriver.SyncFromDisk();
+   if (err != nil && errors.Cause(err) != nil && !os.IsNotExist(errors.Cause(err))) {
+      fmt.Printf("Error parsing existing metadata: %+v\n", err);
+      return;
+   }
+
    var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin);
    for {
       fmt.Print("> ");
@@ -69,6 +76,8 @@ func main() {
          panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to run command: " + command)));
       }
    }
+
+   fsDriver.Close();
 }
 
 // Returns: (key, iv, path).
@@ -141,7 +150,7 @@ func cat(fsDriver *driver.Driver, args []string) error {
 
    for _, arg := range(args) {
       // Reset the buffer from the last read.
-      buffer = buffer[:0];
+      buffer = buffer[0:cap(buffer)];
 
       // TODO(eriq): Not root (and root dir)
       reader, err := fsDriver.Read(user.ROOT_ID, dirent.Id(arg));

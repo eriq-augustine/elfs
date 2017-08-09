@@ -13,6 +13,7 @@ import (
 )
 
 func (this *Driver) Close() {
+   this.SyncToDisk();
    this.connector.Close();
 }
 
