@@ -21,6 +21,8 @@ type Connector interface {
    GetEncryptedReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (io.ReadCloser, error)
    // Metadata may be stored in a different way than normal files.
    GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (io.ReadCloser, error)
+   GetEncryptedWriter(fileInfo *dirent.Dirent, blockCipher cipher.Block) (io.WriteCloser, error)
+   GetMetadataWriter(metadataId string, blockCipher cipher.Block, iv []byte) (io.WriteCloser, error)
    // Write out an encrypted file from cleartext bytes,
    // Manipulate NO metatdata.
    // Returns: (file size (cleartext), md5 hash (of cleartext as a hex string), error)
