@@ -43,7 +43,7 @@ func NewDir(id Id, owner user.Id, name string,
    return &Dirent{
       Id: id,
       IsFile: false,
-      IV: util.GenIV(),
+      IV: nil,
       Owner: owner,
       Name: name,
       CreateTimestamp: timestamp,

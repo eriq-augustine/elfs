@@ -50,12 +50,14 @@ func (this *Driver) Put(
    }
 
    if (groupPermissions == nil) {
-      return NewIllegalOperationError("Put requires a non-nil group permissions. Empty is valid.");
+      return errors.WithStack(NewIllegalOperationError("Put requires a non-nil group permissions. Empty is valid."));
    }
 
+   // TODO(eriq): Technically, this could be leaking information about
+   // the existance of a parent that the user does not have access to.
    _, ok := this.fat[parentDir];
    if (!ok) {
-      return NewIllegalOperationError("Put requires an existing parent directory.");
+      return errors.WithStack(NewIllegalOperationError("Put requires an existing parent directory."));
    }
 
    // Consider all parts of this operation happening at this timestamp.
@@ -71,7 +73,7 @@ func (this *Driver) Put(
 
       err := this.checkCreatePermissions(user, parentDir);
       if (err != nil) {
-         return err;
+         return errors.WithStack(err);
       }
 
       fileInfo = dirent.NewFile(this.getNewDirentId(), user, name, groupPermissions, parentDir, operationTimestamp);
@@ -81,7 +83,7 @@ func (this *Driver) Put(
 
       err := this.checkUpdatePermissions(user, fileInfo);
       if (err != nil) {
-         return err;
+         return errors.WithStack(err);
       }
 
       if (!fileInfo.IsFile) {
@@ -141,6 +143,11 @@ func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) 
       return nil, NewIllegalOperationError("Cannot list a file, use Read() instead.");
    }
 
+   // Update metadata.
+   dirInfo.AccessTimestamp = time.Now().Unix();
+   dirInfo.AccessCount++;
+   this.cacheDirent(dirInfo);
+
    return this.dirs[dir], nil;
 }
 
@@ -150,4 +157,42 @@ func (this *Driver) Remove(dirent dirent.Id) error {
 
 func (this *Driver) Move(dirent dirent.Id, newParent dirent.Id) error {
    return nil;
+}
+
+func (this *Driver) MakeDir(user user.Id, name string,
+      parent dirent.Id, permissions []group.Permission) (dirent.Id, error) {
+   if (name == "") {
+      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot make a dir with no name."));
+   }
+
+   if (permissions == nil) {
+      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("MakeDir requires a non-nil group permissions. Empty is valid."));
+   }
+
+   // TODO(eriq): Technically, this could be leaking information about
+   // the existance of a parent that the user does not have access to.
+   _, ok := this.fat[parent];
+   if (!ok) {
+      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("MakeDir requires an existing parent directory."));
+   }
+
+   err := this.checkCreatePermissions(user, parent);
+   if (err != nil) {
+      return dirent.EMPTY_ID, errors.WithStack(err);
+   }
+
+   // Make sure this directory does not already exist.
+   for _, child := range(this.dirs[parent]) {
+      if (child.Name == name) {
+         return child.Id, errors.WithStack(NewIllegalOperationError("Directory already exists: " + name));
+      }
+   }
+
+   var newDir *dirent.Dirent = dirent.NewDir(this.getNewDirentId(), user, name, permissions, parent, time.Now().Unix());
+   this.fat[newDir.Id] = newDir;
+   this.dirs[parent] = append(this.dirs[parent], newDir);
+
+   this.cacheDirent(newDir);
+
+   return newDir.Id, nil;
 }

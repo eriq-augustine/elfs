@@ -21,15 +21,26 @@ import (
    "github.com/eriq-augustine/s3efs/util"
 )
 
+// Params: (invocation name, fs driver, args (not including invocation)).
+type commandFunction func(string, *driver.Driver, []string) error;
+
 const (
-   COMMAND_CAT = "cat"
-   COMMAND_CREATE = "create"
-   COMMAND_HELP = "help"
-   COMMAND_IMPORT = "import"
-   COMMAND_LOGIN = "login"
-   COMMAND_LS = "ls"
    COMMAND_QUIT = "quit"
 )
+
+var commands map[string]commandFunction;
+
+func init() {
+   commands = make(map[string]commandFunction);
+
+   commands["cat"] = cat;
+   commands["create"] = create;
+   commands["help"] = help;
+   commands["import"] = importFile;
+   commands["login"] = login;
+   commands["ls"] = ls;
+   commands["mkdir"] = mkdir;
+}
 
 // TODO(eriq): login
 // TODO(eriq): hash pass
@@ -121,27 +132,17 @@ func processCommand(fsDriver *driver.Driver, command string) error {
    var operation string = args[0];
    args = args[1:];
 
-   switch operation {
-      case COMMAND_CAT:
-         return cat(fsDriver, args);
-      case COMMAND_CREATE:
-         return create(fsDriver, args);
-      case COMMAND_HELP:
-         return help(fsDriver, args);
-      case COMMAND_IMPORT:
-         return importFile(fsDriver, args);
-      case COMMAND_LOGIN:
-         return login(fsDriver, args);
-      case COMMAND_LS:
-         return ls(fsDriver, args);
-      default:
-         return errors.New("Unknown operation: " + operation);
+   commandFunc, ok := commands[operation];
+   if (!ok) {
+      return errors.New("Unknown operation: " + operation);
    }
+
+   return errors.Wrap(commandFunc(operation, fsDriver, args), "Failed to run command");
 };
 
-func cat(fsDriver *driver.Driver, args []string) error {
+func cat(command string, fsDriver *driver.Driver, args []string) error {
    if (len(args) < 1) {
-      return errors.New(fmt.Sprintf("USAGE: %s <file> ...", COMMAND_CREATE));
+      return errors.New(fmt.Sprintf("USAGE: %s <file> ...", command));
    }
 
    var buffer []byte = make([]byte, local.IO_BLOCK_SIZE);
@@ -179,50 +180,55 @@ func cat(fsDriver *driver.Driver, args []string) error {
    return nil;
 }
 
-func create(fsDriver *driver.Driver, args []string) error {
+func create(command string, fsDriver *driver.Driver, args []string) error {
    if (len(args) != 2) {
-      return errors.New(fmt.Sprintf("USAGE: %s <root email> <root weak passhash>", COMMAND_CREATE));
+      return errors.New(fmt.Sprintf("USAGE: %s <root email> <root weak passhash>", command));
    }
 
    return fsDriver.CreateFilesystem(args[0], util.ShaHash(args[1]));
 }
 
-func help(fsDriver *driver.Driver, args []string) error {
+func help(command string, fsDriver *driver.Driver, args []string) error {
    return errors.New("Operation not implemented.");
 }
 
-func importFile(fsDriver *driver.Driver, args []string) error {
-   if (len(args) < 1) {
-      return errors.New(fmt.Sprintf("USAGE: %s <file> ...", COMMAND_CREATE));
+func importFile(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) < 1 || len(args) > 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <external file> [parent id]", command));
    }
 
-   // TODO(eriq): dest path
+   var localPath string = args[0];
 
-   for _, arg := range(args) {
-      fileReader, err := os.Open(arg);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to open local file for reading: " + arg);
-      }
-
-      // TODO(eriq): Not root (and root dir)
-      err = fsDriver.Put(user.ROOT_ID, filepath.Base(arg), fileReader, []group.Permission{}, dirent.ROOT_ID);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to put imported file: " + arg);
-      }
-
-      fileReader.Close();
+   var parent dirent.Id = dirent.ROOT_ID;
+   if (len(args) == 2) {
+      parent = dirent.Id(args[1]);
    }
+
+   fileReader, err := os.Open(localPath);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to open local file for reading: " + localPath);
+   }
+   defer fileReader.Close();
+
+   // TODO(eriq): Groups Permissions (hard from terminal, just force chmod?).
+
+   // TODO(eriq): Not root
+   err = fsDriver.Put(user.ROOT_ID, filepath.Base(localPath), fileReader, []group.Permission{}, parent);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to put imported file: " + localPath);
+   }
+
 
    return nil;
 }
 
-func login(fsDriver *driver.Driver, args []string) error {
+func login(command string, fsDriver *driver.Driver, args []string) error {
    return errors.New("Operation not implemented.");
 }
 
-func ls(fsDriver *driver.Driver, args []string) error {
+func ls(command string, fsDriver *driver.Driver, args []string) error {
    if (len(args) > 1) {
-      return errors.New(fmt.Sprintf("USAGE: %s [dir id]", COMMAND_LS));
+      return errors.New(fmt.Sprintf("USAGE: %s [dir id]", command));
    }
 
    var id dirent.Id = dirent.ROOT_ID;
@@ -238,6 +244,29 @@ func ls(fsDriver *driver.Driver, args []string) error {
    for _, entry := range(entries) {
       fmt.Printf("%s\t%s\t%d\t%d\t%s\n", entry.Name, entry.Id, entry.Size, entry.ModTimestamp, entry.Md5);
    }
+
+   return nil;
+}
+
+func mkdir(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) < 1 || len(args) > 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <dir name> [parent id]", command));
+   }
+
+   var name string = args[0];
+
+   var parent dirent.Id = dirent.ROOT_ID;
+   if (len(args) == 2) {
+      parent = dirent.Id(args[1]);
+   }
+
+   // TODO(eriq): Not root
+   id, err := fsDriver.MakeDir(user.ROOT_ID, name, parent, []group.Permission{});
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to make dir: " + name);
+   }
+
+   fmt.Println(id);
 
    return nil;
 }
