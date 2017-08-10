@@ -79,3 +79,13 @@ func (this *Driver) SyncToDisk() error {
 
    return nil;
 }
+
+// Resolve a path to an id.
+func (this *Driver) ResolvePath(path string) (dirent.Id, error) {
+   node, err := this.root.GetNode(path);
+   if (err != nil) {
+      return dirent.EMPTY_ID, errors.Wrap(err, "Failed to get node for " + string(path));
+   }
+
+   return node.Id, nil;
+}

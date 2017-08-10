@@ -223,6 +223,23 @@ func login(fsDriver *driver.Driver, args []string) error {
 }
 
 func ls(fsDriver *driver.Driver, args []string) error {
-   // TODO(eriq): context path?
-   return errors.New("Operation not implemented.");
+   if (len(args) != 1) {
+      return errors.New(fmt.Sprintf("USAGE: %s <path>", COMMAND_LS));
+   }
+
+   dirent, err := fsDriver.ResolvePath(args[0]);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to resolve path for list");
+   }
+
+   entries, err := fsDriver.List(user.ROOT_ID, dirent);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to list directory: " + args[0]);
+   }
+
+   for _, entry := range(entries) {
+      fmt.Printf("%s\t%s\t%d\t%d\t%s\n", entry.Name, entry.Id, entry.Size, entry.ModTimestamp, entry.Md5);
+   }
+
+   return nil;
 }

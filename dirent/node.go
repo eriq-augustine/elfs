@@ -45,6 +45,10 @@ func (this *Node) AddNode(fat map[Id]*Dirent, dirent *Dirent) error {
 }
 
 func (this *Node) GetNode(path string) (*Node, error) {
+   if (path == FILE_SEPARATOR) {
+      return this, nil;
+   }
+
    node, err := this.getNode(strings.Split(path, FILE_SEPARATOR));
    if (err != nil) {
       return nil, errors.Wrap(err, "Failed to get node for path: " + path);
@@ -54,7 +58,7 @@ func (this *Node) GetNode(path string) (*Node, error) {
 }
 
 func (this *Node) getNode(path []string) (*Node, error) {
-   if (len(path) == 0) {
+   if (len(path) == 0 || (len(path) == 1 && path[0] == "")) {
       return this, nil;
    }
 
