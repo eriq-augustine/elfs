@@ -114,7 +114,7 @@ func (this *Driver) Put(
 
    // Update the directory tree if this is a new file.
    if (newFile) {
-      this.root.AddNode(this.fat, fileInfo);
+      this.dirs[parentDir] = append(this.dirs[parentDir], fileInfo);
    }
 
    this.cacheDirent(fileInfo);
@@ -141,22 +141,7 @@ func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) 
       return nil, NewIllegalOperationError("Cannot list a file, use Read() instead.");
    }
 
-   path, err := dirent.GetPath(this.fat, dir);
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to get path for " + string(dir));
-   }
-
-   node, err := this.root.GetNode(path);
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to get node for " + string(dir));
-   }
-
-   var dirents []*dirent.Dirent = make([]*dirent.Dirent, 0, len(node.Children));
-   for _, child := range(node.Children) {
-      dirents = append(dirents, this.fat[child.Id]);
-   }
-
-   return dirents, nil;
+   return this.dirs[dir], nil;
 }
 
 func (this *Driver) Remove(dirent dirent.Id) error {

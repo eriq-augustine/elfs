@@ -144,8 +144,6 @@ func cat(fsDriver *driver.Driver, args []string) error {
       return errors.New(fmt.Sprintf("USAGE: %s <file> ...", COMMAND_CREATE));
    }
 
-   // TODO(eriq): Don't take raw ids, take paths.
-
    var buffer []byte = make([]byte, local.IO_BLOCK_SIZE);
 
    for _, arg := range(args) {
@@ -223,18 +221,18 @@ func login(fsDriver *driver.Driver, args []string) error {
 }
 
 func ls(fsDriver *driver.Driver, args []string) error {
-   if (len(args) != 1) {
-      return errors.New(fmt.Sprintf("USAGE: %s <path>", COMMAND_LS));
+   if (len(args) > 1) {
+      return errors.New(fmt.Sprintf("USAGE: %s [dir id]", COMMAND_LS));
    }
 
-   dirent, err := fsDriver.ResolvePath(args[0]);
-   if (err != nil) {
-      return errors.Wrap(err, "Failed to resolve path for list");
+   var id dirent.Id = dirent.ROOT_ID;
+   if (len(args) == 1) {
+      id = dirent.Id(args[0]);
    }
 
-   entries, err := fsDriver.List(user.ROOT_ID, dirent);
+   entries, err := fsDriver.List(user.ROOT_ID, id);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to list directory: " + args[0]);
+      return errors.Wrap(err, "Failed to list directory: " + string(id));
    }
 
    for _, entry := range(entries) {
