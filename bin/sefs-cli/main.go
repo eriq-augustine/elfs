@@ -8,6 +8,7 @@ import (
    "io"
    "os"
    "path/filepath"
+   "strconv"
    "strings"
 
    "github.com/pkg/errors"
@@ -48,6 +49,9 @@ func init() {
    commands[COMMAND_LOGIN] = login;
    commands["ls"] = ls;
    commands["mkdir"] = mkdir;
+   commands["useradd"] = useradd;
+   commands["userdel"] = userdel;
+   commands["userlist"] = userlist;
 }
 
 func main() {
@@ -255,11 +259,11 @@ func export(command string, fsDriver *driver.Driver, args []string) error {
 }
 
 func create(command string, fsDriver *driver.Driver, args []string) error {
-   if (len(args) != 2) {
-      return errors.New(fmt.Sprintf("USAGE: %s <root email> <root weak passhash>", command));
+   if (len(args) != 1) {
+      return errors.New(fmt.Sprintf("USAGE: %s <root password>", command));
    }
 
-   return fsDriver.CreateFilesystem(args[0], util.ShaHash(args[1]));
+   return fsDriver.CreateFilesystem(util.ShaHash(args[0]));
 }
 
 func help(command string, fsDriver *driver.Driver, args []string) error {
@@ -325,7 +329,12 @@ func ls(command string, fsDriver *driver.Driver, args []string) error {
    }
 
    for _, entry := range(entries) {
-      fmt.Printf("%s\t%s\t%d\t%d\t%s\n", entry.Name, entry.Id, entry.Size, entry.ModTimestamp, entry.Md5);
+      var direntType string = "D";
+      if (entry.IsFile) {
+         direntType = "F";
+      }
+
+      fmt.Printf("%s\t%s\t%s\t%d\t%d\t%s\n", entry.Name, direntType, entry.Id, entry.Size, entry.ModTimestamp, entry.Md5);
    }
 
    return nil;
@@ -349,6 +358,46 @@ func mkdir(command string, fsDriver *driver.Driver, args []string) error {
    }
 
    fmt.Println(id);
+
+   return nil;
+}
+
+func useradd(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <username> <password>", command));
+   }
+
+   _, err := fsDriver.AddUser(activeUser.Id, args[0], util.ShaHash(args[1]));
+   return errors.Wrap(err, "Failed to add user");
+}
+
+func userdel(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 1) {
+      return errors.New(fmt.Sprintf("USAGE: %s <username>", command));
+   }
+
+   userId, err := strconv.Atoi(args[0]);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to parse user id");
+   }
+
+   err = fsDriver.RemoveUser(activeUser.Id, user.Id(userId));
+   return errors.Wrap(err, "Failed to remove user");
+}
+
+func userlist(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 0) {
+      return errors.New(fmt.Sprintf("USAGE: %s", command));
+   }
+
+   users, err := fsDriver.GetUsers(activeUser.Id);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to get users.");
+   }
+
+   for _, user := range(users) {
+      fmt.Printf("%s\t%d\n", user.Name, int(user.Id));
+   }
 
    return nil;
 }

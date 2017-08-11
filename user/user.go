@@ -19,7 +19,7 @@ type User struct {
    Name string
 }
 
-func New(id Id, weakhash string, name string, email string) (*User, error) {
+func New(id Id, weakhash string, name string) (*User, error) {
    bcryptHash, err := bcrypt.GenerateFromPassword([]byte(weakhash), bcrypt.DefaultCost);
    if (err != nil) {
       golog.ErrorE("Could not generate bcrypt hash", err);

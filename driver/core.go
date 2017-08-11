@@ -18,10 +18,10 @@ func (this *Driver) Close() {
 }
 
 // Create a new filesystem.
-func (this *Driver) CreateFilesystem(rootEmail string, rootPasshash string) error {
+func (this *Driver) CreateFilesystem(rootPasshash string) error {
    this.connector.PrepareStorage();
 
-   rootUser, err := user.New(user.ROOT_ID, rootPasshash, user.ROOT_NAME, rootEmail);
+   rootUser, err := user.New(user.ROOT_ID, rootPasshash, user.ROOT_NAME);
    if (err != nil) {
       return errors.Wrap(err, "Could not create root user.");
    }

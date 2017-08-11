@@ -30,17 +30,13 @@ func (this *Driver) UserAuth(name string, weakhash string) (*user.User, error) {
    return nil, errors.WithStack(NewAuthError("Failed to auth user."));
 }
 
-func (this *Driver) AddUser(contextUser user.Id, name string, email string, weakhash string) (user.Id, error) {
+func (this *Driver) AddUser(contextUser user.Id, name string, weakhash string) (user.Id, error) {
    if (contextUser != user.ROOT_ID) {
       return user.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Only root can add users."));
    }
 
    if (name == "") {
       return user.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot create user with no name."));
-   }
-
-   if (email == "") {
-      return user.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot create user with no email."));
    }
 
    if (weakhash == "") {
@@ -53,7 +49,7 @@ func (this *Driver) AddUser(contextUser user.Id, name string, email string, weak
       }
    }
 
-   newUser, err := user.New(this.getNewUserId(), weakhash, name, email);
+   newUser, err := user.New(this.getNewUserId(), weakhash, name);
    if (err != nil) {
       return user.EMPTY_ID, errors.Wrap(err, "Failed to create new user.");
    }
@@ -70,6 +66,10 @@ func (this *Driver) RemoveUser(contextUser user.Id, targetId user.Id) error {
       return errors.WithStack(NewIllegalOperationError("Only root can delete users."));
    }
 
+   if (targetId == user.ROOT_ID) {
+      return errors.WithStack(NewIllegalOperationError("Cannot remove root  user."));
+   }
+
    targetUser, ok := this.users[targetId];
    if (!ok) {
       return errors.WithStack(NewIllegalOperationError("Cannot delete unknown user."));
@@ -83,6 +83,14 @@ func (this *Driver) RemoveUser(contextUser user.Id, targetId user.Id) error {
    this.cacheUserDel(targetUser);
 
    return nil;
+}
+
+func (this *Driver) GetUsers(contextUser user.Id) (map[user.Id]*user.User, error) {
+   if (contextUser != user.ROOT_ID) {
+      return nil, errors.WithStack(NewIllegalOperationError("Only root can list users."));
+   }
+
+   return this.users, nil;
 }
 
 // Transfer owneership of all files from one user to another.
