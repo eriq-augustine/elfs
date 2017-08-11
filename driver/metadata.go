@@ -242,3 +242,11 @@ func encodeMetadata(encoder *json.Encoder, size int) (error) {
 func (this *Driver) cacheDirent(direntInfo *dirent.Dirent) {
    // TODO(eriq)
 }
+
+func (this *Driver) cacheUserAdd(userInfo *user.User) {
+   // TODO(eriq)
+}
+
+func (this *Driver) cacheUserDel(userInfo *user.User) {
+   // TODO(eriq)
+}

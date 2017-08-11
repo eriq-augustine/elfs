@@ -3,7 +3,10 @@ package driver;
 // Simple utilties.
 
 import (
+   "math/rand"
+
    "github.com/eriq-augustine/s3efs/dirent"
+   "github.com/eriq-augustine/s3efs/user"
 )
 
 // Get a new, available dirent id.
@@ -17,6 +20,21 @@ func (this *Driver) getNewDirentId() dirent.Id {
       }
 
       id = dirent.NewId();
+   }
+
+   return id;
+}
+
+func (this *Driver) getNewUserId() user.Id {
+   var id user.Id = user.Id(rand.Int());
+
+   for {
+      _, ok := this.users[id];
+      if (!ok) {
+         break;
+      }
+
+      id = user.Id(rand.Int());
    }
 
    return id;

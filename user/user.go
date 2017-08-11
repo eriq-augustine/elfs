@@ -1,13 +1,12 @@
 package user;
 
 import (
-   "math/rand"
-
    "github.com/eriq-augustine/golog"
    "golang.org/x/crypto/bcrypt"
 )
 
 const (
+   EMPTY_ID = Id(-1)
    ROOT_ID = Id(0)
    ROOT_NAME = "root"
 )
@@ -36,21 +35,7 @@ func New(id Id, weakhash string, name string, email string) (*User, error) {
    return &user, nil;
 }
 
-func NewUserId(otherUsers map[Id]*User) Id {
-   var id Id = Id(rand.Int());
-
-   if (otherUsers == nil) {
-      return id;
-   }
-
-   for {
-      _, ok := otherUsers[id];
-      if (!ok) {
-         break;
-      }
-
-      id = Id(rand.Int());
-   }
-
-   return id;
+func (this *User) Auth(weakhash string) bool {
+   err := bcrypt.CompareHashAndPassword([]byte(this.Passhash), []byte(weakhash));
+   return err == nil;
 }

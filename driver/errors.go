@@ -25,3 +25,15 @@ func NewIllegalOperationError(message string) *IllegalOperationError {
 func (this *IllegalOperationError) Error() string {
    return "Illegal Operation Error: " + this.message;
 }
+
+type AuthError struct {
+   message string
+}
+
+func NewAuthError(message string) *AuthError {
+   return &AuthError{message};
+}
+
+func (this *AuthError) Error() string {
+   return "Authentication Error: " + this.message;
+}
