@@ -8,7 +8,9 @@ import (
    "github.com/eriq-augustine/s3efs/user"
 )
 
-func (this *Driver) UserAuth(name string, weakhash string) (user.Id, error) {
+
+
+func (this *Driver) UserAuth(name string, weakhash string) (*user.User, error) {
    var targetUser *user.User = nil;
    for _, userInfo := range(this.users) {
       if (userInfo.Name == name) {
@@ -18,14 +20,14 @@ func (this *Driver) UserAuth(name string, weakhash string) (user.Id, error) {
    }
 
    if (targetUser == nil) {
-      return user.EMPTY_ID, errors.WithStack(NewAuthError("Cannot find user to auth"));
+      return nil, errors.WithStack(NewAuthError("Cannot find user to auth"));
    }
 
    if (targetUser.Auth(weakhash)) {
-      return targetUser.Id, nil;
+      return targetUser, nil;
    }
 
-   return user.EMPTY_ID, errors.WithStack(NewAuthError("Failed to auth user."));
+   return nil, errors.WithStack(NewAuthError("Failed to auth user."));
 }
 
 func (this *Driver) AddUser(contextUser user.Id, name string, email string, weakhash string) (user.Id, error) {

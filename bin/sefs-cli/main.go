@@ -21,29 +21,33 @@ import (
    "github.com/eriq-augustine/s3efs/util"
 )
 
+// TODO(eriq): Don't allow create as a command.
+//  If dir/fat does not initially exist, prompt for root info and create.
+
 // Params: (invocation name, fs driver, args (not including invocation)).
 type commandFunction func(string, *driver.Driver, []string) error;
 
 const (
    COMMAND_QUIT = "quit"
+   COMMAND_LOGIN = "login"
 )
 
 var commands map[string]commandFunction;
+var activeUser *user.User;
 
 func init() {
+   activeUser = nil;
+
    commands = make(map[string]commandFunction);
 
    commands["cat"] = cat;
    commands["create"] = create;
    commands["help"] = help;
    commands["import"] = importFile;
-   commands["login"] = login;
+   commands[COMMAND_LOGIN] = login;
    commands["ls"] = ls;
    commands["mkdir"] = mkdir;
 }
-
-// TODO(eriq): login
-// TODO(eriq): hash pass
 
 func main() {
    key, iv, path, err := parseArgs();
@@ -67,7 +71,12 @@ func main() {
 
    var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin);
    for {
-      fmt.Print("> ");
+      if (activeUser == nil) {
+         fmt.Printf("> ");
+      } else {
+         fmt.Printf("%s > ", activeUser.Name);
+      }
+
       if (!scanner.Scan()) {
          break;
       }
@@ -84,7 +93,8 @@ func main() {
 
       err = processCommand(fsDriver, command);
       if (err != nil) {
-         panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to run command: " + command)));
+         fmt.Println("Failed to run command:");
+         fmt.Printf("%+v\n", err);
       }
    }
 
@@ -132,6 +142,11 @@ func processCommand(fsDriver *driver.Driver, command string) error {
    var operation string = args[0];
    args = args[1:];
 
+   // Only allow login command if no one is logged in.
+   if (activeUser == nil && operation != COMMAND_LOGIN) {
+      return errors.New("Need to login.");
+   }
+
    commandFunc, ok := commands[operation];
    if (!ok) {
       return errors.New("Unknown operation: " + operation);
@@ -152,7 +167,7 @@ func cat(command string, fsDriver *driver.Driver, args []string) error {
       buffer = buffer[0:cap(buffer)];
 
       // TODO(eriq): Not root (and root dir)
-      reader, err := fsDriver.Read(user.ROOT_ID, dirent.Id(arg));
+      reader, err := fsDriver.Read(activeUser.Id, dirent.Id(arg));
       if (err != nil) {
          return errors.Wrap(err, "Failed to open fs file for reading: " + arg);
       }
@@ -213,7 +228,7 @@ func importFile(command string, fsDriver *driver.Driver, args []string) error {
    // TODO(eriq): Groups Permissions (hard from terminal, just force chmod?).
 
    // TODO(eriq): Not root
-   err = fsDriver.Put(user.ROOT_ID, filepath.Base(localPath), fileReader, []group.Permission{}, parent);
+   err = fsDriver.Put(activeUser.Id, filepath.Base(localPath), fileReader, []group.Permission{}, parent);
    if (err != nil) {
       return errors.Wrap(err, "Failed to put imported file: " + localPath);
    }
@@ -223,7 +238,17 @@ func importFile(command string, fsDriver *driver.Driver, args []string) error {
 }
 
 func login(command string, fsDriver *driver.Driver, args []string) error {
-   return errors.New("Operation not implemented.");
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <username> <password>", command));
+   }
+
+   authUser, err := fsDriver.UserAuth(args[0], util.ShaHash(args[1]));
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to authenticate user.");
+   }
+
+   activeUser = authUser;
+   return nil;
 }
 
 func ls(command string, fsDriver *driver.Driver, args []string) error {
@@ -236,7 +261,7 @@ func ls(command string, fsDriver *driver.Driver, args []string) error {
       id = dirent.Id(args[0]);
    }
 
-   entries, err := fsDriver.List(user.ROOT_ID, id);
+   entries, err := fsDriver.List(activeUser.Id, id);
    if (err != nil) {
       return errors.Wrap(err, "Failed to list directory: " + string(id));
    }
@@ -261,7 +286,7 @@ func mkdir(command string, fsDriver *driver.Driver, args []string) error {
    }
 
    // TODO(eriq): Not root
-   id, err := fsDriver.MakeDir(user.ROOT_ID, name, parent, []group.Permission{});
+   id, err := fsDriver.MakeDir(activeUser.Id, name, parent, []group.Permission{});
    if (err != nil) {
       return errors.Wrap(err, "Failed to make dir: " + name);
    }
