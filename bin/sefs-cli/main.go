@@ -42,6 +42,7 @@ func init() {
 
    commands["cat"] = cat;
    commands["create"] = create;
+   commands["export"] = export;
    commands["help"] = help;
    commands["import"] = importFile;
    commands[COMMAND_LOGIN] = login;
@@ -97,6 +98,7 @@ func main() {
          fmt.Printf("%+v\n", err);
       }
    }
+   fmt.Println("");
 
    fsDriver.Close();
 }
@@ -166,7 +168,6 @@ func cat(command string, fsDriver *driver.Driver, args []string) error {
       // Reset the buffer from the last read.
       buffer = buffer[0:cap(buffer)];
 
-      // TODO(eriq): Not root (and root dir)
       reader, err := fsDriver.Read(activeUser.Id, dirent.Id(arg));
       if (err != nil) {
          return errors.Wrap(err, "Failed to open fs file for reading: " + arg);
@@ -190,6 +191,64 @@ func cat(command string, fsDriver *driver.Driver, args []string) error {
 
       fmt.Println("");
       reader.Close();
+   }
+
+   return nil;
+}
+
+func export(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <file> <external path>", command));
+   }
+
+   var source dirent.Id = dirent.Id(args[0]);
+   var dest string = args[1];
+
+   fileInfo, err := fsDriver.GetDirent(activeUser.Id, source);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to get dirent for export");
+   }
+
+   // TODO(eriq): -r
+   if (!fileInfo.IsFile) {
+      return errors.New("Recursive export is currently not supported.");
+   }
+
+   // Check if the external path is a directory.
+   // If so, make the target path that directory with the file's current name.
+   stat, err := os.Stat(dest);
+   if (err == nil && stat.IsDir()) {
+      dest = filepath.Join(dest, fileInfo.Name);
+   }
+
+   outFile, err := os.Create(dest);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to create outout file for export.");
+   }
+   defer outFile.Close();
+
+   var buffer []byte = make([]byte, local.IO_BLOCK_SIZE);
+
+   reader, err := fsDriver.Read(activeUser.Id, source);
+   if (err != nil) {
+      return errors.Wrap(err, "Failed to open fs file for reading: " + string(source));
+   }
+   defer reader.Close();
+
+   var done bool = false;
+   for (!done) {
+      readSize, err := reader.Read(buffer);
+      if (err != nil) {
+         if (err != io.EOF) {
+            return errors.Wrap(err, "Failed to read fs file: " + string(source));
+         }
+
+         done = true;
+      }
+
+      if (readSize > 0) {
+         outFile.Write(buffer[0:readSize]);
+      }
    }
 
    return nil;
@@ -227,7 +286,6 @@ func importFile(command string, fsDriver *driver.Driver, args []string) error {
 
    // TODO(eriq): Groups Permissions (hard from terminal, just force chmod?).
 
-   // TODO(eriq): Not root
    err = fsDriver.Put(activeUser.Id, filepath.Base(localPath), fileReader, []group.Permission{}, parent);
    if (err != nil) {
       return errors.Wrap(err, "Failed to put imported file: " + localPath);
@@ -285,7 +343,6 @@ func mkdir(command string, fsDriver *driver.Driver, args []string) error {
       parent = dirent.Id(args[1]);
    }
 
-   // TODO(eriq): Not root
    id, err := fsDriver.MakeDir(activeUser.Id, name, parent, []group.Permission{});
    if (err != nil) {
       return errors.Wrap(err, "Failed to make dir: " + name);

@@ -14,6 +14,7 @@ import (
 )
 
 func (this *Driver) Read(user user.Id, file dirent.Id) (io.ReadCloser, error) {
+   // TODO(eriq): This leaks permissions
    fileInfo, ok := this.fat[file];
    if (!ok) {
       return nil, NewIllegalOperationError("Cannot read non-existant file: " + string(file));
@@ -63,7 +64,7 @@ func (this *Driver) Put(
    // Consider all parts of this operation happening at this timestamp.
    var operationTimestamp int64 = time.Now().Unix();
 
-   var fileInfo *dirent.Dirent = this.FetchByName(name, parentDir);
+   var fileInfo *dirent.Dirent = this.fetchByName(name, parentDir);
    var newFile bool;
 
    // Create or update?
@@ -124,7 +125,8 @@ func (this *Driver) Put(
    return nil;
 }
 
-func (this *Driver) FetchByName(name string, parent dirent.Id) *dirent.Dirent {
+func (this *Driver) fetchByName(name string, parent dirent.Id) *dirent.Dirent {
+   // TODO(eriq)
    return nil;
 }
 
@@ -152,10 +154,12 @@ func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) 
 }
 
 func (this *Driver) Remove(dirent dirent.Id) error {
+   // TODO(eriq)
    return nil;
 }
 
 func (this *Driver) Move(dirent dirent.Id, newParent dirent.Id) error {
+   // TODO(eriq)
    return nil;
 }
 
@@ -195,4 +199,19 @@ func (this *Driver) MakeDir(user user.Id, name string,
    this.cacheDirent(newDir);
 
    return newDir.Id, nil;
+}
+
+func (this *Driver) GetDirent(user user.Id, id dirent.Id) (*dirent.Dirent, error) {
+   // TODO(eriq): This leaks permissions
+   info, ok := this.fat[id];
+   if (!ok) {
+      return nil, errors.WithStack(NewIllegalOperationError("Dirent does not exist: " + string(id)));
+   }
+
+   err := this.checkReadPermissions(user, info);
+   if (err != nil) {
+      return nil, errors.WithStack(err);
+   }
+
+   return info, nil;
 }
