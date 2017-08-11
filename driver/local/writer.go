@@ -59,7 +59,6 @@ func (this *encryptedFileWriter) GetHash() string {
 
 func newEncryptedFileWriter(path string,
       blockCipher cipher.Block, rawIV []byte) (*encryptedFileWriter, error) {
-   // TODO(eriq): Do we need to create a different GCM (AEAD) every time?
    gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
       return nil, err;

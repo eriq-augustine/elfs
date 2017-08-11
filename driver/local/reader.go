@@ -33,7 +33,6 @@ type encryptedFileReader struct {
 
 func newEncryptedFileReader(path string,
       blockCipher cipher.Block, rawIV []byte) (*encryptedFileReader, error) {
-   // TODO(eriq): Do we need to create a different GCM (AEAD) every time?
    gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
       return nil, err;
@@ -68,8 +67,6 @@ func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
 
    // Keep track of the original output buffer so we can calculate final size correctly.
    var originalOutBuffer []byte = outBuffer;
-
-   // TODO(eriq): EOF
 
    // We will keep reading until there is no more to read or the buffer is full.
    for (len(outBuffer) > 0) {
