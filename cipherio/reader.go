@@ -1,11 +1,12 @@
-package local;
+package cipherio;
 
-// A reader specifically for encrypted files.
+// A reader specifically for encrypted data.
+// This will wrap another reader that is expected to deliver encrypted content.
+// This will buffer any content necessary to get enough data to decrypt chunks.
 
 import (
    "crypto/cipher"
    "io"
-   "os"
 
    "github.com/pkg/errors"
 
@@ -16,7 +17,7 @@ import (
 // all in chunks of size IO_BLOCK_SIZE.
 // Note that the cleartext will be in checks of IO_BLOCK_SIZE,
 // but the cipertext read will be slightly larger.
-type encryptedFileReader struct {
+type CipherReader struct {
    gcm cipher.AEAD
    ciphertextBuffer []byte
    // We will always read from disk in chunks of IO_BLOCK_SIZE (+ cipher overhead).
@@ -27,25 +28,21 @@ type encryptedFileReader struct {
    // We will be reslicing the cleartextBuffer as the cleartext is requested.
    originalCleartextBuffer []byte
    iv []byte
-   fileReader *os.File
+   reader io.ReadCloser
    done bool
 }
 
-func newEncryptedFileReader(path string,
-      blockCipher cipher.Block, rawIV []byte) (*encryptedFileReader, error) {
+// Caller gives up control of the reader.
+func NewCipherReader(reader io.ReadCloser,
+      blockCipher cipher.Block, rawIV []byte) (*CipherReader, error) {
    gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
       return nil, err;
    }
 
-   fileReader, err := os.Open(path);
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Unable to open file on disk at: " + path);
-   }
-
    var cleartextBuffer []byte = make([]byte, 0, IO_BLOCK_SIZE);
 
-   var rtn encryptedFileReader = encryptedFileReader{
+   var rtn CipherReader = CipherReader{
       gcm: gcm,
       // Allocate enough room for the ciphertext.
       ciphertextBuffer: make([]byte, 0, IO_BLOCK_SIZE + gcm.Overhead()),
@@ -53,14 +50,14 @@ func newEncryptedFileReader(path string,
       originalCleartextBuffer: cleartextBuffer,
       // Make a copy of the IV since we will be incrementing it for each chunk.
       iv: append([]byte(nil), rawIV...),
-      fileReader: fileReader,
+      reader: reader,
       done: false,
    };
 
    return &rtn, nil;
 }
 
-func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
+func (this *CipherReader) Read(outBuffer []byte) (int, error) {
    if (this.done) {
       return 0, io.EOF;
    }
@@ -109,7 +106,7 @@ func (this *encryptedFileReader) Read(outBuffer []byte) (int, error) {
 }
 
 
-func (this *encryptedFileReader) readChunk() error {
+func (this *CipherReader) readChunk() error {
    // The cleartext buffer better be totally used (empty).
    if (len(this.cleartextBuffer) != 0) {
       return errors.New("Cleartext buffer is not empty.");
@@ -119,7 +116,7 @@ func (this *encryptedFileReader) readChunk() error {
    this.ciphertextBuffer = this.ciphertextBuffer[0:IO_BLOCK_SIZE + this.gcm.Overhead()];
 
    // Get the ciphertext.
-   readSize, err := this.fileReader.Read(this.ciphertextBuffer);
+   readSize, err := this.reader.Read(this.ciphertextBuffer);
    if (err != nil) {
       if (err != io.EOF) {
          return errors.Wrap(err, "Failed to read ciphertext chunk");
@@ -147,6 +144,6 @@ func (this *encryptedFileReader) readChunk() error {
    return nil;
 }
 
-func (this *encryptedFileReader) Close() error {
-   return this.fileReader.Close();
+func (this *CipherReader) Close() error {
+   return this.reader.Close();
 }

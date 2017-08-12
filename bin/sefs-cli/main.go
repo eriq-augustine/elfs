@@ -14,9 +14,9 @@ import (
    "github.com/pkg/errors"
    shellquote "github.com/kballard/go-shellquote"
 
+   "github.com/eriq-augustine/s3efs/cipherio"
    "github.com/eriq-augustine/s3efs/dirent"
    "github.com/eriq-augustine/s3efs/driver"
-   "github.com/eriq-augustine/s3efs/driver/local"
    "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
    "github.com/eriq-augustine/s3efs/util"
@@ -62,7 +62,7 @@ func main() {
       return;
    }
 
-   fsDriver, err := local.NewDriver(key, iv, path);
+   fsDriver, err := driver.NewLocalDriver(key, iv, path);
    if (err != nil) {
       panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to get local driver")));
    }
@@ -166,7 +166,7 @@ func cat(command string, fsDriver *driver.Driver, args []string) error {
       return errors.New(fmt.Sprintf("USAGE: %s <file> ...", command));
    }
 
-   var buffer []byte = make([]byte, local.IO_BLOCK_SIZE);
+   var buffer []byte = make([]byte, cipherio.IO_BLOCK_SIZE);
 
    for _, arg := range(args) {
       // Reset the buffer from the last read.
@@ -231,7 +231,7 @@ func export(command string, fsDriver *driver.Driver, args []string) error {
    }
    defer outFile.Close();
 
-   var buffer []byte = make([]byte, local.IO_BLOCK_SIZE);
+   var buffer []byte = make([]byte, cipherio.IO_BLOCK_SIZE);
 
    reader, err := fsDriver.Read(activeUser.Id, source);
    if (err != nil) {

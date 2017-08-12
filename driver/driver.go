@@ -7,35 +7,19 @@ package driver;
 import (
    "crypto/aes"
    "crypto/cipher"
-   "io"
 
+   "github.com/eriq-augustine/s3efs/connector"
    "github.com/eriq-augustine/s3efs/dirent"
    "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
 )
-
-type Connector interface {
-   // Prepare the backend storage for initialization.
-   PrepareStorage() error
-   // Get a reader that transparently handles all decryption.
-   GetEncryptedReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (io.ReadCloser, error)
-   // Metadata may be stored in a different way than normal files.
-   GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (io.ReadCloser, error)
-   GetEncryptedWriter(fileInfo *dirent.Dirent, blockCipher cipher.Block) (io.WriteCloser, error)
-   GetMetadataWriter(metadataId string, blockCipher cipher.Block, iv []byte) (io.WriteCloser, error)
-   // Write out an encrypted file from cleartext bytes,
-   // Manipulate NO metatdata.
-   // Returns: (file size (cleartext), md5 hash (of cleartext as a hex string), error)
-   Write(fileInfo *dirent.Dirent, blockCipher cipher.Block, clearbytes io.Reader) (uint64, string, error)
-   Close() error
-}
 
 // TODO(eriq): Writes to FAT probably need a lock.
 
 // TODO(eriq): Need to async operations and keep track of what files currently have read or writes.
 
 type Driver struct {
-   connector Connector
+   connector connector.Connector
    blockCipher cipher.Block
    // IV for metadata tables.
    iv []byte
@@ -50,7 +34,7 @@ type Driver struct {
 // Normally you will want to get a storage specific driver, like a NewLocalDriver.
 // If you need a new filesystem, you should call CreateFilesystem().
 // If you want to load up an existing filesystem, then you should call SyncFromDisk().
-func NewDriver(key []byte, iv []byte, connector Connector) (*Driver, error) {
+func newDriver(key []byte, iv []byte, connector connector.Connector) (*Driver, error) {
    blockCipher, err := aes.NewCipher(key)
    if err != nil {
       return nil, err;

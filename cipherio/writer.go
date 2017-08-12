@@ -1,15 +1,16 @@
-package local;
+package cipherio;
 
-// Not actually an io.Writer, just a function for
-// encrypting and writing.
-// Note that this does not update any metadata.
+// A writer specifically for encrypted data.
+// This will wrap another writer that is expected to
+// write the actual cipher bytes to storage.
+// This will buffer any content necessary to get enough data to encrypt chunks.
 
 import (
    "crypto/cipher"
    "crypto/md5"
    "fmt"
    "hash"
-   "os"
+   "io"
 
    "github.com/pkg/errors"
 
@@ -24,7 +25,7 @@ import (
 // Close() MUST BE CALLED after all reading is finished.
 // Without the Close() call, the final chunk will not get writen.
 // The file size (cleartext) and md5 will be available after the writer is closed.
-type encryptedFileWriter struct {
+type CipherWriter struct {
    gcm cipher.AEAD
    // We need to keep the original slice around so we can resize without reallocating.
    // We will be reslicing the cleartextBuffer so we can encrypt in chunks.
@@ -34,49 +35,22 @@ type encryptedFileWriter struct {
    cleartextBuffer []byte
    ciphertextBuffer []byte
    iv []byte
-   fileWriter *os.File
+   writer io.WriteCloser
    done bool
    fileSize uint64
    md5Hash hash.Hash
 }
 
-func (this *encryptedFileWriter) GetFileSize() uint64 {
-   if (!this.done) {
-      panic("Can't get the filesize of an open encryptedFileWriter");
-   }
-
-   return this.fileSize;
-}
-
-// Get the md5 as a hex string.
-func (this *encryptedFileWriter) GetHash() string {
-   if (!this.done) {
-      panic("Can't get the hash of an open encryptedFileWriter");
-   }
-
-   return fmt.Sprintf("%x", this.md5Hash.Sum(nil));
-}
-
-func newEncryptedFileWriter(path string,
-      blockCipher cipher.Block, rawIV []byte) (*encryptedFileWriter, error) {
+func NewCipherWriter(writer io.WriteCloser,
+      blockCipher cipher.Block, rawIV []byte) (*CipherWriter, error) {
    gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
       return nil, err;
    }
 
-   fileWriter, err := os.Create(path);
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Unable to create file on disk at: " + path);
-   }
-
-   err = fileWriter.Chmod(0600);
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Unable to change file permissions of: " + path);
-   }
-
    var cleartextBuffer []byte = make([]byte, 0, IO_BLOCK_SIZE);
 
-   var rtn encryptedFileWriter = encryptedFileWriter{
+   var rtn CipherWriter = CipherWriter{
       gcm: gcm,
       originalCleartextBuffer: cleartextBuffer,
       cleartextBuffer: cleartextBuffer,
@@ -84,7 +58,7 @@ func newEncryptedFileWriter(path string,
       ciphertextBuffer: make([]byte, 0, IO_BLOCK_SIZE + gcm.Overhead()),
       // Make a copy of the IV since we will be incrementing it for each chunk.
       iv: append([]byte(nil), rawIV...),
-      fileWriter: fileWriter,
+      writer: writer,
       done: false,
       fileSize: 0,
       md5Hash: md5.New(),
@@ -93,7 +67,24 @@ func newEncryptedFileWriter(path string,
    return &rtn, nil;
 }
 
-func (this *encryptedFileWriter) Write(data []byte) (int, error) {
+func (this *CipherWriter) GetFileSize() uint64 {
+   if (!this.done) {
+      panic("Can't get the filesize of an open CipherWriter");
+   }
+
+   return this.fileSize;
+}
+
+// Get the md5 as a hex string.
+func (this *CipherWriter) GetHash() string {
+   if (!this.done) {
+      panic("Can't get the hash of an open CipherWriter");
+   }
+
+   return fmt.Sprintf("%x", this.md5Hash.Sum(nil));
+}
+
+func (this *CipherWriter) Write(data []byte) (int, error) {
    // Grow our local cleartext buffer
    this.cleartextBuffer = append(this.cleartextBuffer, data...);
 
@@ -107,7 +98,7 @@ func (this *encryptedFileWriter) Write(data []byte) (int, error) {
    return len(data), nil;
 }
 
-func (this *encryptedFileWriter) writeChunks() error {
+func (this *CipherWriter) writeChunks() error {
    // We don't have enough to write yet.
    if (len(this.cleartextBuffer) < IO_BLOCK_SIZE && !this.done) {
       return nil;
@@ -131,7 +122,7 @@ func (this *encryptedFileWriter) writeChunks() error {
       // Use the shared buffer's memory.
       cipherText := this.gcm.Seal(this.ciphertextBuffer, this.iv, data, nil);
 
-      _, err := this.fileWriter.Write(cipherText);
+      _, err := this.writer.Write(cipherText);
       if (err != nil) {
          return errors.Wrap(err, "Failed to write file block");
       }
@@ -148,12 +139,12 @@ func (this *encryptedFileWriter) writeChunks() error {
    return nil;
 }
 
-func (this *encryptedFileWriter) Close() error {
+func (this *CipherWriter) Close() error {
    this.done = true;
    err := this.writeChunks();
    if (err != nil) {
       return errors.Wrap(err, "Failed final write");
    }
 
-   return this.fileWriter.Close();
+   return this.writer.Close();
 }

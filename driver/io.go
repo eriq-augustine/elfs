@@ -8,6 +8,7 @@ import (
 
    "github.com/pkg/errors"
 
+   "github.com/eriq-augustine/s3efs/connector"
    "github.com/eriq-augustine/s3efs/dirent"
    "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
@@ -29,7 +30,7 @@ func (this *Driver) Read(user user.Id, file dirent.Id) (io.ReadCloser, error) {
       return nil, NewIllegalOperationError("Cannot read a dir, use List() instead.");
    }
 
-   reader, err := this.connector.GetEncryptedReader(fileInfo, this.blockCipher);
+   reader, err := this.connector.GetCipherReader(fileInfo, this.blockCipher);
    if (err != nil) {
       return nil, err;
    }
@@ -96,7 +97,7 @@ func (this *Driver) Put(
       }
    }
 
-   fileSize, md5String, err := this.connector.Write(fileInfo, this.blockCipher, clearbytes);
+   fileSize, md5String, err := connector.Write(this.connector, fileInfo, this.blockCipher, clearbytes);
    if (err != nil) {
       return err;
    }
