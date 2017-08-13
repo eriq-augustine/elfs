@@ -3,250 +3,146 @@ package driver;
 // Helpers that deal only with metadata (fat, users, and groups).
 
 import (
-   "encoding/json"
-   "fmt"
-
    "github.com/pkg/errors"
 
    "github.com/eriq-augustine/s3efs/dirent"
    "github.com/eriq-augustine/s3efs/group"
+   "github.com/eriq-augustine/s3efs/metadata"
    "github.com/eriq-augustine/s3efs/user"
+   "github.com/eriq-augustine/s3efs/util"
 )
 
 const (
-   // If we have file systems in the wild, we will need to make sure we
-   // are looking at consistent structure.
-   FORMAT_VERSION = 0
    FAT_ID = "fat"
    USERS_ID = "users"
    GROUPS_ID = "groups"
+
+   // Offset the initial IV for each table.
+   IV_OFFSET_USERS = 100
+   IV_OFFSET_GROUPS = 200
+   IV_OFFSET_CACHE = 300
+   IV_OFFSET_FAT = 500
 )
+
+// Make a copy of the IV and increment it enough.
+func (this *Driver) initIVs() {
+   this.fatIV = append([]byte(nil), this.iv...);
+   for i := 0; i < IV_OFFSET_FAT; i++ {
+      util.IncrementBytes(this.fatIV);
+   }
+
+   this.usersIV = append([]byte(nil), this.iv...);
+   for i := 0; i < IV_OFFSET_USERS; i++ {
+      util.IncrementBytes(this.usersIV);
+   }
+
+   this.groupsIV = append([]byte(nil), this.iv...);
+   for i := 0; i < IV_OFFSET_GROUPS; i++ {
+      util.IncrementBytes(this.groupsIV);
+   }
+
+   this.cacheIV = append([]byte(nil), this.iv...);
+   for i := 0; i < IV_OFFSET_CACHE; i++ {
+      util.IncrementBytes(this.cacheIV);
+   }
+}
 
 // Read the full fat into memory.
 func (this *Driver) readFat() error {
-   reader, err := this.connector.GetMetadataReader(FAT_ID, this.blockCipher, this.iv);
+   reader, err := this.connector.GetMetadataReader(FAT_ID, this.blockCipher, this.fatIV);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to get reader for FAT");
-   }
-
-   var decoder *json.Decoder = json.NewDecoder(reader);
-
-   size, err := decodeMetadata(decoder);
-   if (err != nil) {
-      return errors.Wrap(err, "Could not decode FAT metadata.");
+      return errors.WithStack(err);
    }
 
    // Clear the existing fat.
    this.fat = make(map[dirent.Id]*dirent.Dirent);
 
-   // Read all the dirents.
-   for i := 0; i < size; i++ {
-      var entry dirent.Dirent;
-      err = decoder.Decode(&entry);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to read dirent.");
-      }
-
-      this.fat[entry.Id] = &entry;
-   }
-
-   err = reader.Close();
+   // Metadata takes ownership of reader.
+   err = metadata.ReadFat(this.fat, reader);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to close fat reader.");
+      return errors.WithStack(err);
    }
-
-   // Build up the directory map.
-   this.dirs = dirent.BuildDirs(this.fat);
 
    return nil;
 }
 
 // Write the full fat to disk.
 func (this *Driver) writeFat() error {
-   writer, err := this.connector.GetMetadataWriter(FAT_ID, this.blockCipher, this.iv);
+   writer, err := this.connector.GetMetadataWriter(FAT_ID, this.blockCipher, this.fatIV);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to get writer for FAT");
+      return errors.WithStack(err);
    }
 
-   var encoder *json.Encoder = json.NewEncoder(writer);
-
-   err = encodeMetadata(encoder, len(this.fat));
+   err = metadata.WriteFat(this.fat, writer);
    if (err != nil) {
-      return errors.Wrap(err, "Could not encode FAT metadata.");
+      return errors.WithStack(err);
    }
 
-   // Write all the dirents.
-   for _, entry := range(this.fat) {
-      err = encoder.Encode(entry);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to write dirent.");
-      }
-   }
-
-   return writer.Close();
+   return errors.WithStack(writer.Close());
 }
 
 // Read the full user listing into memory.
 func (this *Driver) readUsers() error {
-   reader, err := this.connector.GetMetadataReader(USERS_ID, this.blockCipher, this.iv);
+   reader, err := this.connector.GetMetadataReader(USERS_ID, this.blockCipher, this.usersIV);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to get reader for users");
+      return errors.WithStack(err);
    }
 
-   var decoder *json.Decoder = json.NewDecoder(reader);
-
-   size, err := decodeMetadata(decoder);
-   if (err != nil) {
-      return errors.Wrap(err, "Could not decode groups metadata.");
-   }
-
-   // Clear the existing users.
    this.users = make(map[user.Id]*user.User);
 
-   // Read all the users.
-   for i := 0; i < size; i++ {
-      var entry user.User;
-      err = decoder.Decode(&entry);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to read user.");
-      }
-
-      this.users[entry.Id] = &entry;
-   }
-
-   return reader.Close();
-}
-
-// Write the full user listing to disk.
-func (this *Driver) writeUsers() error {
-   writer, err := this.connector.GetMetadataWriter(USERS_ID, this.blockCipher, this.iv);
+   // Metadata takes ownership of reader.
+   err = metadata.ReadUsers(this.users, reader);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to get writer for users");
-   }
-
-   var encoder *json.Encoder = json.NewEncoder(writer);
-
-   err = encodeMetadata(encoder, len(this.users));
-   if (err != nil) {
-      return errors.Wrap(err, "Could not encode users metadata.");
-   }
-
-   // Write all the users.
-   for _, entry := range(this.users) {
-      err = encoder.Encode(entry);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to write users.");
-      }
-   }
-
-   return writer.Close();
-}
-
-// Read the full group listing into memory.
-func (this *Driver) readGroups() error {
-   reader, err := this.connector.GetMetadataReader(GROUPS_ID, this.blockCipher, this.iv);
-   if (err != nil) {
-      return errors.Wrap(err, "Failed to get reader for groups");
-   }
-
-   var decoder *json.Decoder = json.NewDecoder(reader);
-
-   size, err := decodeMetadata(decoder);
-   if (err != nil) {
-      return errors.Wrap(err, "Could not decode groups metadata.");
-   }
-
-   // Clear the existing groups.
-   this.groups = make(map[group.Id]*group.Group);
-
-   // Read all the groups.
-   for i := 0; i < size; i++ {
-      var entry group.Group;
-      err = decoder.Decode(&entry);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to read group.");
-      }
-
-      this.groups[entry.Id] = &entry;
-   }
-
-   return reader.Close();
-}
-
-// Write the full group listing to disk.
-func (this *Driver) writeGroups() error {
-   writer, err := this.connector.GetMetadataWriter(GROUPS_ID, this.blockCipher, this.iv);
-   if (err != nil) {
-      return errors.Wrap(err, "Failed to get writer for groups");
-   }
-
-   var encoder *json.Encoder = json.NewEncoder(writer);
-
-   err = encodeMetadata(encoder, len(this.groups));
-   if (err != nil) {
-      return errors.Wrap(err, "Could not encode groups metadata.");
-   }
-
-   // Write all the groups.
-   for _, entry := range(this.groups) {
-      err = encoder.Encode(entry);
-      if (err != nil) {
-         return errors.Wrap(err, "Failed to write groups.");
-      }
-   }
-
-   return writer.Close();
-}
-
-// Decode the metadata elements of the metadata file.
-// Verify the version and return the size.
-func decodeMetadata(decoder *json.Decoder) (int, error) {
-   var version int;
-   var size int;
-
-   err := decoder.Decode(&version);
-   if (err != nil) {
-      return 0, errors.Wrap(err, "Could not decode metadata version.");
-   }
-
-   if (version != FORMAT_VERSION) {
-      return 0, errors.WithStack(NewIllegalOperationError(fmt.Sprintf(
-            "Mismatch in FAT version. Expected: %d, Found: %d", FORMAT_VERSION, version)));
-   }
-
-   err = decoder.Decode(&size);
-   if (err != nil) {
-      return 0, errors.Wrap(err, "Could not decode metadata size.");
-   }
-
-   return size, nil;
-}
-
-// Encode the metadata elements of the metadata file.
-func encodeMetadata(encoder *json.Encoder, size int) (error) {
-   var version int = FORMAT_VERSION;
-   err := encoder.Encode(&version);
-   if (err != nil) {
-      return errors.Wrap(err, "Could not encode metadata version.");
-   }
-
-   err = encoder.Encode(&size);
-   if (err != nil) {
-      return errors.Wrap(err, "Could not encode metadata size.");
+      return errors.WithStack(err);
    }
 
    return nil;
 }
 
-// Put this dirent in the semi-durable cache.
-func (this *Driver) cacheDirent(direntInfo *dirent.Dirent) {
-   // TODO(eriq)
+// Write the full user listing to disk.
+func (this *Driver) writeUsers() error {
+   writer, err := this.connector.GetMetadataWriter(USERS_ID, this.blockCipher, this.usersIV);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   err = metadata.WriteUsers(this.users, writer);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   return errors.WithStack(writer.Close());
 }
 
-func (this *Driver) cacheUserAdd(userInfo *user.User) {
-   // TODO(eriq)
+// Read the full group listing into memory.
+func (this *Driver) readGroups() error {
+   reader, err := this.connector.GetMetadataReader(GROUPS_ID, this.blockCipher, this.groupsIV);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   this.groups = make(map[group.Id]*group.Group);
+
+   // Metadata takes ownership of reader.
+   err = metadata.ReadGroups(this.groups, reader);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   return nil;
 }
 
-func (this *Driver) cacheUserDel(userInfo *user.User) {
-   // TODO(eriq)
+// Write the full group listing to disk.
+func (this *Driver) writeGroups() error {
+   writer, err := this.connector.GetMetadataWriter(GROUPS_ID, this.blockCipher, this.groupsIV);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   err = metadata.WriteGroups(this.groups, writer);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   return errors.WithStack(writer.Close());
 }

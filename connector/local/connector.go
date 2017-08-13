@@ -51,6 +51,10 @@ func NewLocalConnector(path string) (*LocalConnector, error) {
    return &connector, nil;
 }
 
+func (this *LocalConnector) GetId() string {
+   return "Local:" + this.path;
+}
+
 func (this *LocalConnector) PrepareStorage() error {
    return os.MkdirAll(this.path, 0700);
 }

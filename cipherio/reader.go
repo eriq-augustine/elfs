@@ -37,7 +37,7 @@ func NewCipherReader(reader io.ReadCloser,
       blockCipher cipher.Block, rawIV []byte) (*CipherReader, error) {
    gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
-      return nil, err;
+      return nil, errors.WithStack(err);
    }
 
    var cleartextBuffer []byte = make([]byte, 0, IO_BLOCK_SIZE);
@@ -145,5 +145,5 @@ func (this *CipherReader) readChunk() error {
 }
 
 func (this *CipherReader) Close() error {
-   return this.reader.Close();
+   return errors.WithStack(this.reader.Close());
 }

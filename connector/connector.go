@@ -11,6 +11,9 @@ import (
 )
 
 type Connector interface {
+   // Every connector should be able to construct a unique id for itself
+   // that is the same for each backend.
+   GetId() string
    // Prepare the backend storage for initialization.
    PrepareStorage() error
    // Get a reader that transparently handles all decryption.

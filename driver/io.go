@@ -38,7 +38,7 @@ func (this *Driver) Read(user user.Id, file dirent.Id) (io.ReadCloser, error) {
    // Update metadata.
    fileInfo.AccessTimestamp = time.Now().Unix();
    fileInfo.AccessCount++;
-   this.cacheDirent(fileInfo);
+   this.cache.CacheDirentPut(fileInfo);
 
    return reader, nil;
 }
@@ -121,7 +121,7 @@ func (this *Driver) Put(
       this.dirs[parentDir] = append(this.dirs[parentDir], fileInfo);
    }
 
-   this.cacheDirent(fileInfo);
+   this.cache.CacheDirentPut(fileInfo);
 
    return nil;
 }
@@ -149,7 +149,7 @@ func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) 
    // Update metadata.
    dirInfo.AccessTimestamp = time.Now().Unix();
    dirInfo.AccessCount++;
-   this.cacheDirent(dirInfo);
+   this.cache.CacheDirentPut(dirInfo);
 
    return this.dirs[dir], nil;
 }
@@ -197,7 +197,7 @@ func (this *Driver) MakeDir(user user.Id, name string,
    this.fat[newDir.Id] = newDir;
    this.dirs[parent] = append(this.dirs[parent], newDir);
 
-   this.cacheDirent(newDir);
+   this.cache.CacheDirentPut(newDir);
 
    return newDir.Id, nil;
 }

@@ -58,9 +58,19 @@ func (this *Driver) SyncFromDisk() error {
       return errors.Wrap(err, "Could not read groups");
    }
 
+   // Also check the cache for incomplete transactions.
+   err = this.loadFromCache();
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   // Build up the directory map.
+   this.dirs = dirent.BuildDirs(this.fat);
+
    return nil;
 }
 
+// Write all metadata to disk and clear the cache after.
 func (this *Driver) SyncToDisk() error {
    err := this.writeFat();
    if (err != nil) {
@@ -77,5 +87,42 @@ func (this *Driver) SyncToDisk() error {
       return errors.Wrap(err, "Could not write groups");
    }
 
+   // All changes are on disk, the cache is safe to clear.
+   this.cache.Clear();
+
    return nil;
+}
+
+// Read the cache and if there are entries, sync them to disk.
+// Nil values in the cache represents deletes.
+func (this *Driver) loadFromCache() error {
+   if (this.cache.IsEmpty()) {
+      return nil;
+   }
+
+   for id, entry := range(this.cache.GetFat()) {
+      if (entry == nil) {
+         delete(this.fat, id);
+      } else {
+         this.fat[id] = entry;
+      }
+   }
+
+   for id, entry := range(this.cache.GetUsers()) {
+      if (entry == nil) {
+         delete(this.users, id);
+      } else {
+         this.users[id] = entry;
+      }
+   }
+
+   for id, entry := range(this.cache.GetGroups()) {
+      if (entry == nil) {
+         delete(this.groups, id);
+      } else {
+         this.groups[id] = entry;
+      }
+   }
+
+   return errors.WithStack(this.SyncToDisk());
 }

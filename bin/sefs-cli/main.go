@@ -29,8 +29,9 @@ import (
 type commandFunction func(string, *driver.Driver, []string) error;
 
 const (
-   COMMAND_QUIT = "quit"
+   COMMAND_CREATE = "create"
    COMMAND_LOGIN = "login"
+   COMMAND_QUIT = "quit"
 )
 
 var commands map[string]commandFunction;
@@ -42,7 +43,7 @@ func init() {
    commands = make(map[string]commandFunction);
 
    commands["cat"] = cat;
-   commands["create"] = create;
+   commands[COMMAND_CREATE] = create;
    commands["export"] = export;
    commands["help"] = help;
    commands["import"] = importFile;
@@ -148,8 +149,8 @@ func processCommand(fsDriver *driver.Driver, command string) error {
    var operation string = args[0];
    args = args[1:];
 
-   // Only allow login command if no one is logged in.
-   if (activeUser == nil && operation != COMMAND_LOGIN) {
+   // Only allow login and create commands if no one is logged in.
+   if (activeUser == nil && operation != COMMAND_LOGIN && operation != COMMAND_CREATE) {
       return errors.New("Need to login.");
    }
 

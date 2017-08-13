@@ -8,8 +8,6 @@ import (
    "github.com/eriq-augustine/s3efs/user"
 )
 
-
-
 func (this *Driver) UserAuth(name string, weakhash string) (*user.User, error) {
    var targetUser *user.User = nil;
    for _, userInfo := range(this.users) {
@@ -56,7 +54,7 @@ func (this *Driver) AddUser(contextUser user.Id, name string, weakhash string) (
 
    this.users[newUser.Id] = newUser;
 
-   this.cacheUserAdd(newUser);
+   this.cache.CacheUserPut(newUser);
 
    return newUser.Id, nil;
 }
@@ -80,7 +78,7 @@ func (this *Driver) RemoveUser(contextUser user.Id, targetId user.Id) error {
    this.purgeFromGroups(targetUser.Id);
 
    delete(this.users, targetUser.Id);
-   this.cacheUserDel(targetUser);
+   this.cache.CacheUserDelete(targetUser);
 
    return nil;
 }
