@@ -51,6 +51,7 @@ func init() {
    commands["ls"] = ls;
    commands["mkdir"] = mkdir;
    commands["mv"] = move;
+   commands["rename"] = rename;
    commands["rm"] = remove;
    commands["useradd"] = useradd;
    commands["userdel"] = userdel;
@@ -374,6 +375,16 @@ func move(command string, fsDriver *driver.Driver, args []string) error {
    var newParentId dirent.Id = dirent.Id(args[1]);
 
    return errors.WithStack(fsDriver.Move(activeUser.Id, targetId, newParentId));
+}
+
+func rename(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <target id> <new name>", command));
+   }
+
+   var targetId dirent.Id = dirent.Id(args[0]);
+
+   return errors.WithStack(fsDriver.Rename(activeUser.Id, targetId, args[1]));
 }
 
 func remove(command string, fsDriver *driver.Driver, args []string) error {

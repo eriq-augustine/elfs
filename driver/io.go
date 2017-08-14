@@ -283,7 +283,28 @@ func (this *Driver) Move(user user.Id, target dirent.Id, newParent dirent.Id) er
 }
 
 func (this *Driver) Rename(user user.Id, target dirent.Id, newName string) error {
-   // TODO(eriq)
+   if (newName == "") {
+      return errors.WithStack(NewIllegalOperationError("Cannot put a file with no name."));
+   }
+
+   targetInfo, ok := this.fat[target];
+   if (!ok) {
+      return errors.WithStack(NewDoesntExistError(string(target)));
+   }
+
+   err := this.checkWritePermissions(user, targetInfo);
+   if (err != nil) {
+      return errors.Wrap(err, string(target));
+   }
+
+   if (newName == targetInfo.Name) {
+      return nil;
+   }
+
+   // Update fat
+   targetInfo.Name = newName;
+   this.cache.CacheDirentPut(targetInfo);
+
    return nil;
 }
 
