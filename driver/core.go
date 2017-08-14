@@ -30,7 +30,10 @@ func (this *Driver) CreateFilesystem(rootPasshash string) error {
 
    this.groups[group.EVERYBODY_ID] = group.New(group.EVERYBODY_ID, group.EVERYBODY_NAME, rootUser.Id);
 
-   var permissions []group.Permission = []group.Permission{group.NewPermission(group.EVERYBODY_ID, true, true)};
+   var permissions map[group.Id]group.Permission = map[group.Id]group.Permission{
+      group.EVERYBODY_ID: group.NewPermission(true, true),
+   }
+
    this.fat[dirent.ROOT_ID] = dirent.NewDir(dirent.ROOT_ID, rootUser.Id, dirent.ROOT_NAME,
          permissions, dirent.ROOT_ID, time.Now().Unix());
 

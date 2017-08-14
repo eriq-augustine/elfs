@@ -44,13 +44,19 @@ func init() {
 
    commands["cat"] = cat;
    commands[COMMAND_CREATE] = create;
+   commands["demote"] = demote;
    commands["export"] = export;
+   commands["groupadd"] = groupadd;
+   commands["groupdel"] = groupdel;
+   commands["groupjoin"] = groupjoin;
+   commands["grouplist"] = grouplist;
    commands["help"] = help;
    commands["import"] = importFile;
    commands[COMMAND_LOGIN] = login;
    commands["ls"] = ls;
    commands["mkdir"] = mkdir;
    commands["mv"] = move;
+   commands["promote"] = promote;
    commands["rename"] = rename;
    commands["rm"] = remove;
    commands["useradd"] = useradd;
@@ -292,7 +298,7 @@ func importFile(command string, fsDriver *driver.Driver, args []string) error {
    }
    defer fileReader.Close();
 
-   err = fsDriver.Put(activeUser.Id, filepath.Base(localPath), fileReader, []group.Permission{}, parent);
+   err = fsDriver.Put(activeUser.Id, filepath.Base(localPath), fileReader, map[group.Id]group.Permission{}, parent);
    if (err != nil) {
       return errors.Wrap(err, "Failed to put imported file: " + localPath);
    }
@@ -330,13 +336,42 @@ func ls(command string, fsDriver *driver.Driver, args []string) error {
       return errors.Wrap(err, "Failed to list directory: " + string(id));
    }
 
+   var parts []string = make([]string, 0);
+   var groups []string = make([]string, 0);
+
    for _, entry := range(entries) {
+      parts = parts[:0];
+      groups = parts[:0];
+
       var direntType string = "D";
       if (entry.IsFile) {
          direntType = "F";
       }
 
-      fmt.Printf("%s\t%s\t%s\t%d\t%d\t%s\n", entry.Name, direntType, entry.Id, entry.Size, entry.ModTimestamp, entry.Md5);
+      parts = append(parts, entry.Name, direntType,
+            string(entry.Id), fmt.Sprintf("%d", entry.Size), fmt.Sprintf("%d", entry.ModTimestamp), entry.Md5);
+
+      // Get the group permissions.
+      for groupId, permission := range(entry.GroupPermissions) {
+         var access string = "";
+
+         if (permission.Read) {
+            access += "R";
+         } else {
+            access += "-";
+         }
+
+         if (permission.Write) {
+            access += "W";
+         } else {
+            access += "-";
+         }
+
+         groups = append(groups, fmt.Sprintf("%s: %s", groupId, access));
+      }
+      parts = append(parts, fmt.Sprintf("[%s]", strings.Join(groups, ", ")));
+
+      fmt.Println(strings.Join(parts, "\t"));
    }
 
    return nil;
@@ -354,7 +389,7 @@ func mkdir(command string, fsDriver *driver.Driver, args []string) error {
       parent = dirent.Id(args[1]);
    }
 
-   id, err := fsDriver.MakeDir(activeUser.Id, name, parent, []group.Permission{});
+   id, err := fsDriver.MakeDir(activeUser.Id, name, parent, map[group.Id]group.Permission{});
    if (err != nil) {
       return errors.Wrap(err, "Failed to make dir: " + name);
    }
@@ -446,4 +481,119 @@ func userlist(command string, fsDriver *driver.Driver, args []string) error {
    }
 
    return nil;
+}
+
+func demote(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <group id> <user id>", command));
+   }
+
+   groupId, err := strconv.Atoi(args[0]);
+   if (err != nil) {
+      return errors.Wrap(err, args[0]);
+   }
+
+   userId, err := strconv.Atoi(args[1]);
+   if (err != nil) {
+      return errors.Wrap(err, args[1]);
+   }
+
+   return errors.WithStack(fsDriver.DemoteUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
+}
+
+func groupadd(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 1) {
+      return errors.New(fmt.Sprintf("USAGE: %s <group name>", command));
+   }
+
+   newId, err := fsDriver.AddGroup(activeUser.Id, args[0]);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   fmt.Println(newId);
+   return nil;
+}
+
+func groupdel(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 1) {
+      return errors.New(fmt.Sprintf("USAGE: %s <group id>", command));
+   }
+
+   groupId, err := strconv.Atoi(args[0]);
+   if (err != nil) {
+      return errors.Wrap(err, args[0]);
+   }
+
+   return errors.WithStack(fsDriver.DeleteGroup(activeUser.Id, group.Id(groupId)));
+}
+
+func groupjoin(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <group id> <user id>", command));
+   }
+
+   groupId, err := strconv.Atoi(args[0]);
+   if (err != nil) {
+      return errors.Wrap(err, args[0]);
+   }
+
+   userId, err := strconv.Atoi(args[1]);
+   if (err != nil) {
+      return errors.Wrap(err, args[1]);
+   }
+
+   return errors.WithStack(fsDriver.JoinGroup(activeUser.Id, user.Id(userId), group.Id(groupId)));
+}
+
+func grouplist(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 0) {
+      return errors.New(fmt.Sprintf("USAGE: %s", command));
+   }
+
+   groups, err := fsDriver.GetGroups();
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   var parts []string = make([]string, 0);
+   for _, group := range(groups) {
+      parts = parts[:0];
+
+      parts = append(parts, group.Name);
+      parts = append(parts, fmt.Sprintf("%d", int(group.Id)));
+
+      for userId, _ := range(group.Users) {
+         var name string;
+         if (group.Admins[userId]) {
+            name = fmt.Sprintf("%d*", int(userId));
+         } else {
+            name = fmt.Sprintf("%d", int(userId));
+         }
+
+         parts = append(parts, name);
+      }
+
+      fmt.Println(strings.Join(parts, "\t"));
+   }
+
+   return nil;
+}
+
+func promote(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <group id> <user id>", command));
+   }
+
+   groupId, err := strconv.Atoi(args[0]);
+   if (err != nil) {
+      return errors.Wrap(err, args[0]);
+   }
+
+   userId, err := strconv.Atoi(args[1]);
+   if (err != nil) {
+      return errors.Wrap(err, args[1]);
+   }
+
+   return errors.WithStack(fsDriver.PromoteUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
 }

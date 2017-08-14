@@ -3,6 +3,8 @@ package driver;
 // Operations (and helpers) that deal with file permissions.
 
 import (
+   "fmt"
+
    "github.com/pkg/errors"
 
    "github.com/eriq-augustine/s3efs/dirent"
@@ -65,4 +67,17 @@ func (this *Driver) checkRecusiveWritePermissions(user user.Id, fileInfo *dirent
    }
 
    return nil;
+}
+
+// Can the given user adminsitrate this group?
+func (this *Driver) checkGroupAdminPermissions(userId user.Id, group *group.Group) error {
+   if (userId == user.ROOT_ID) {
+      return nil;
+   }
+
+   if (group.Admins[userId]) {
+      return nil;
+   }
+
+   return NewPermissionsError(fmt.Sprintf("User (%d) cannot administrate group (%d)", int(userId), int(group.Id)));
 }

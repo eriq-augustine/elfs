@@ -10,24 +10,24 @@ import (
 )
 
 // Can the specified user write to this dirent.
-func (this *Dirent) CanWrite(user user.Id, groups map[group.Id]*group.Group) bool {
-   if (this.Owner == user) {
+func (this *Dirent) CanWrite(userId user.Id, groups map[group.Id]*group.Group) bool {
+   if (userId == user.ROOT_ID || userId == this.Owner) {
       return true;
    }
 
-   for _, groupPermission := range(this.GroupPermissions) {
+   for groupId, groupPermission := range(this.GroupPermissions) {
       if (!groupPermission.Write) {
          continue;
       }
 
-      group, ok := groups[groupPermission.GroupId];
+      group, ok := groups[groupId];
       if (!ok) {
          golog.Warn(fmt.Sprintf("Orphaned group permission found. Dirent: %s, Group: %d.",
-               this.Id, groupPermission.GroupId));
+               this.Id, groupId));
          continue;
       }
 
-      if (group.Users.Contains(user)) {
+      if (group.Users[userId]) {
          return true;
       }
    }
@@ -36,24 +36,24 @@ func (this *Dirent) CanWrite(user user.Id, groups map[group.Id]*group.Group) boo
 }
 
 // Can the specified user read the dirent.
-func (this *Dirent) CanRead(user user.Id, groups map[group.Id]*group.Group) bool {
-   if (this.Owner == user) {
+func (this *Dirent) CanRead(userId user.Id, groups map[group.Id]*group.Group) bool {
+   if (userId == user.ROOT_ID || userId == this.Owner) {
       return true;
    }
 
-   for _, groupPermission := range(this.GroupPermissions) {
+   for groupId, groupPermission := range(this.GroupPermissions) {
       if (!groupPermission.Read) {
          continue;
       }
 
-      group, ok := groups[groupPermission.GroupId];
+      group, ok := groups[groupId];
       if (!ok) {
          golog.Warn(fmt.Sprintf("Orphaned group permission found. Dirent: %s, Group: %d.",
-               this.Id, groupPermission.GroupId));
+               this.Id, groupId));
          continue;
       }
 
-      if (group.Users.Contains(user)) {
+      if (group.Users[userId]) {
          return true;
       }
    }

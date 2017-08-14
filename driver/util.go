@@ -6,6 +6,7 @@ import (
    "math/rand"
 
    "github.com/eriq-augustine/s3efs/dirent"
+   "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
 )
 
@@ -35,6 +36,21 @@ func (this *Driver) getNewUserId() user.Id {
       }
 
       id = user.Id(rand.Int());
+   }
+
+   return id;
+}
+
+func (this *Driver) getNewGroupId() group.Id {
+   var id group.Id = group.Id(rand.Int());
+
+   for {
+      _, ok := this.groups[id];
+      if (!ok) {
+         break;
+      }
+
+      id = group.Id(rand.Int());
    }
 
    return id;

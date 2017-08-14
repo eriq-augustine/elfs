@@ -55,7 +55,7 @@ func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) 
 }
 
 func (this *Driver) MakeDir(user user.Id, name string,
-      parent dirent.Id, permissions []group.Permission) (dirent.Id, error) {
+      parent dirent.Id, permissions map[group.Id]group.Permission) (dirent.Id, error) {
    if (name == "") {
       return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot make a dir with no name."));
    }
@@ -134,7 +134,7 @@ func (this *Driver) Move(user user.Id, target dirent.Id, newParent dirent.Id) er
 func (this *Driver) Put(
       user user.Id,
       name string, clearbytes io.Reader,
-      groupPermissions []group.Permission, parentDir dirent.Id) error {
+      groupPermissions map[group.Id]group.Permission, parentDir dirent.Id) error {
    if (name == "") {
       return NewIllegalOperationError("Cannot put a file with no name.");
    }

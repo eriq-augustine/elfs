@@ -5,6 +5,7 @@ package driver;
 import (
    "github.com/pkg/errors"
 
+   "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
 )
 
@@ -33,8 +34,11 @@ func (this *Driver) AddUser(contextUser user.Id, name string, weakhash string) (
    }
 
    this.users[newUser.Id] = newUser;
-
    this.cache.CacheUserPut(newUser);
+
+   // Add the user to the everybody group.
+   this.groups[group.EVERYBODY_ID].Users[newUser.Id] = true;
+   this.cache.CacheGroupPut(this.groups[group.EVERYBODY_ID]);
 
    return newUser.Id, nil;
 }
@@ -53,7 +57,7 @@ func (this *Driver) RemoveUser(contextUser user.Id, targetId user.Id) error {
    }
 
    if (targetId == user.ROOT_ID) {
-      return errors.WithStack(NewIllegalOperationError("Cannot remove root  user."));
+      return errors.WithStack(NewIllegalOperationError("Cannot remove root user."));
    }
 
    targetUser, ok := this.users[targetId];

@@ -32,14 +32,14 @@ type Dirent struct {
    ModTimestamp int64
    AccessTimestamp int64
    AccessCount uint
-   GroupPermissions []group.Permission
+   GroupPermissions map[group.Id]group.Permission
    Size uint64 // bytes
    Md5 string
    Parent Id
 }
 
 func NewDir(id Id, owner user.Id, name string,
-      groupPermissions []group.Permission, parent Id, timestamp int64) *Dirent {
+      groupPermissions map[group.Id]group.Permission, parent Id, timestamp int64) *Dirent {
    return &Dirent{
       Id: id,
       IsFile: false,
@@ -50,7 +50,7 @@ func NewDir(id Id, owner user.Id, name string,
       ModTimestamp: timestamp,
       AccessTimestamp: timestamp,
       AccessCount: 0,
-      GroupPermissions: make([]group.Permission, 0),
+      GroupPermissions: groupPermissions,
       Size: 0,
       Md5: "",
       Parent: parent,
@@ -58,7 +58,7 @@ func NewDir(id Id, owner user.Id, name string,
 }
 
 func NewFile(id Id, owner user.Id, name string,
-      groupPermissions []group.Permission, parent Id, timestamp int64) *Dirent {
+      groupPermissions map[group.Id]group.Permission, parent Id, timestamp int64) *Dirent {
    return &Dirent{
       Id: id,
       IsFile: true,

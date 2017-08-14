@@ -3,31 +3,137 @@ package driver;
 // Operations dealing with groups in the filesystem.
 
 import (
+   "github.com/pkg/errors"
+
    "github.com/eriq-augustine/s3efs/group"
    "github.com/eriq-augustine/s3efs/user"
 )
 
-func (this *Driver) DemoteUser(user user.Id, group group.Id) error {
+func (this *Driver) AddGroup(contextUser user.Id, name string) (group.Id, error) {
+   if (name == "") {
+      return group.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot create group with no name."));
+   }
+
+   for _, groupInfo := range(this.groups) {
+      if (groupInfo.Name == name) {
+         return group.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot create group with existing name: " + name));
+      }
+   }
+
+   newGroup := group.New(this.getNewGroupId(), name, contextUser);
+
+   this.groups[newGroup.Id] = newGroup;
+   this.cache.CacheGroupPut(newGroup);
+
+   return newGroup.Id, nil;
+}
+
+func (this *Driver) DeleteGroup(contextUser user.Id, groupId group.Id) error {
+   groupInfo, ok := this.groups[groupId];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot remove unknown group."));
+   }
+
+   if (groupInfo.Id == group.EVERYBODY_ID) {
+      return errors.WithStack(NewIllegalOperationError("Cannot remove everybody group"));
+   }
+
+   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   // Remove this group from the fat.
+   this.purgeGroup(groupId);
+
+   delete(this.groups, groupId);
+   this.cache.CacheGroupDelete(groupInfo);
+
+   return nil;
+}
+
+func (this *Driver) DemoteUser(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
+   if (contextUser != user.ROOT_ID) {
+      return errors.WithStack(NewIllegalOperationError("Only root can demote users."));
+   }
+
+   groupInfo, ok := this.groups[groupId];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot demote in unknown group."));
+   }
+
+   if (!groupInfo.Admins[targetUser]) {
+      return nil;
+   }
+
+   delete(groupInfo.Admins, targetUser);
+   this.cache.CacheGroupPut(groupInfo);
+
+   return nil;
+}
+
+func (this *Driver) GetGroups() (map[group.Id]*group.Group, error) {
+   return this.groups, nil;
+}
+
+func (this *Driver) JoinGroup(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
+   groupInfo, ok := this.groups[groupId];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot join an unknown group."));
+   }
+
+   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   if (groupInfo.Users[targetUser]) {
+      return nil;
+   }
+
+   groupInfo.Users[targetUser] = true;
+   this.cache.CacheGroupPut(groupInfo);
+
+   return nil;
+}
+
+func (this *Driver) KickUser(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
    // TODO(eriq)
    return nil;
 }
 
-func (this *Driver) Groupadd(name string, owner user.Id) (int, error) {
-   // TODO(eriq)
-   return -1, nil;
-}
+func (this *Driver) PromoteUser(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
+   groupInfo, ok := this.groups[groupId];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot promote in unknown group."));
+   }
 
-func (this *Driver) Groupdel(group group.Id) error {
-   // TODO(eriq)
+   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   if (!groupInfo.Users[targetUser]) {
+      return errors.WithStack(NewIllegalOperationError("Promotion candidate is not a member of the group."));
+   }
+
+   if (groupInfo.Admins[targetUser]) {
+      return nil;
+   }
+
+   groupInfo.Admins[targetUser] = true;
+   this.cache.CacheGroupPut(groupInfo);
+
    return nil;
 }
 
-func (this *Driver) JoinGroup(user user.Id, group group.Id) error {
-   // TODO(eriq)
-   return nil;
-}
-
-func (this *Driver) PromoteUser(user user.Id, group group.Id) error {
-   // TODO(eriq)
-   return nil;
+// Go through the entire FAT and ensure that there are no traces of this group.
+func (this *Driver) purgeGroup(groupId group.Id) {
+   for _, direntInfo := range(this.fat) {
+      _, ok := direntInfo.GroupPermissions[groupId];
+      if (ok) {
+         delete(direntInfo.GroupPermissions, groupId);
+         this.cache.CacheDirentPut(direntInfo);
+      }
+   }
 }
