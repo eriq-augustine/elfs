@@ -292,8 +292,6 @@ func importFile(command string, fsDriver *driver.Driver, args []string) error {
    }
    defer fileReader.Close();
 
-   // TODO(eriq): Groups Permissions (hard from terminal, just force chmod?).
-
    err = fsDriver.Put(activeUser.Id, filepath.Base(localPath), fileReader, []group.Permission{}, parent);
    if (err != nil) {
       return errors.Wrap(err, "Failed to put imported file: " + localPath);

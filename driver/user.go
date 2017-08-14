@@ -8,26 +8,6 @@ import (
    "github.com/eriq-augustine/s3efs/user"
 )
 
-func (this *Driver) UserAuth(name string, weakhash string) (*user.User, error) {
-   var targetUser *user.User = nil;
-   for _, userInfo := range(this.users) {
-      if (userInfo.Name == name) {
-         targetUser = userInfo;
-         break;
-      }
-   }
-
-   if (targetUser == nil) {
-      return nil, errors.WithStack(NewAuthError("Cannot find user to auth"));
-   }
-
-   if (targetUser.Auth(weakhash)) {
-      return targetUser, nil;
-   }
-
-   return nil, errors.WithStack(NewAuthError("Failed to auth user."));
-}
-
 func (this *Driver) AddUser(contextUser user.Id, name string, weakhash string) (user.Id, error) {
    if (contextUser != user.ROOT_ID) {
       return user.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Only root can add users."));
@@ -59,6 +39,14 @@ func (this *Driver) AddUser(contextUser user.Id, name string, weakhash string) (
    return newUser.Id, nil;
 }
 
+func (this *Driver) GetUsers(contextUser user.Id) (map[user.Id]*user.User, error) {
+   if (contextUser != user.ROOT_ID) {
+      return nil, errors.WithStack(NewIllegalOperationError("Only root can list users."));
+   }
+
+   return this.users, nil;
+}
+
 func (this *Driver) RemoveUser(contextUser user.Id, targetId user.Id) error {
    if (contextUser != user.ROOT_ID) {
       return errors.WithStack(NewIllegalOperationError("Only root can delete users."));
@@ -83,12 +71,24 @@ func (this *Driver) RemoveUser(contextUser user.Id, targetId user.Id) error {
    return nil;
 }
 
-func (this *Driver) GetUsers(contextUser user.Id) (map[user.Id]*user.User, error) {
-   if (contextUser != user.ROOT_ID) {
-      return nil, errors.WithStack(NewIllegalOperationError("Only root can list users."));
+func (this *Driver) UserAuth(name string, weakhash string) (*user.User, error) {
+   var targetUser *user.User = nil;
+   for _, userInfo := range(this.users) {
+      if (userInfo.Name == name) {
+         targetUser = userInfo;
+         break;
+      }
    }
 
-   return this.users, nil;
+   if (targetUser == nil) {
+      return nil, errors.WithStack(NewAuthError("Cannot find user to auth"));
+   }
+
+   if (targetUser.Auth(weakhash)) {
+      return targetUser, nil;
+   }
+
+   return nil, errors.WithStack(NewAuthError("Failed to auth user."));
 }
 
 // Transfer owneership of all files from one user to another.
