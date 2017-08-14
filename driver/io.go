@@ -2,6 +2,9 @@ package driver;
 
 // IO operations that specificially deal with single files.
 
+// TODO(eriq): There are several places here were we leak information because
+// we tell the that some file exists or they don't have permissions.
+
 import (
    "io"
    "time"
@@ -15,10 +18,9 @@ import (
 )
 
 func (this *Driver) Read(user user.Id, file dirent.Id) (io.ReadCloser, error) {
-   // TODO(eriq): This leaks permissions
    fileInfo, ok := this.fat[file];
    if (!ok) {
-      return nil, NewIllegalOperationError("Cannot read non-existant file: " + string(file));
+      return nil, NewDoesntExistError(string(file));
    }
 
    err := this.checkReadPermissions(user, fileInfo);
@@ -55,8 +57,6 @@ func (this *Driver) Put(
       return errors.WithStack(NewIllegalOperationError("Put requires a non-nil group permissions. Empty is valid."));
    }
 
-   // TODO(eriq): Technically, this could be leaking information about
-   // the existance of a parent that the user does not have access to.
    _, ok := this.fat[parentDir];
    if (!ok) {
       return errors.WithStack(NewIllegalOperationError("Put requires an existing parent directory."));
@@ -83,7 +83,7 @@ func (this *Driver) Put(
       // Update
       newFile = false;
 
-      err := this.checkUpdatePermissions(user, fileInfo);
+      err := this.checkWritePermissions(user, fileInfo);
       if (err != nil) {
          return errors.WithStack(err);
       }
@@ -127,14 +127,19 @@ func (this *Driver) Put(
 }
 
 func (this *Driver) fetchByName(name string, parent dirent.Id) *dirent.Dirent {
-   // TODO(eriq)
+   for _, child := range(this.dirs[parent]) {
+      if (child.Name == name) {
+         return child;
+      }
+   }
+
    return nil;
 }
 
 func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) {
    dirInfo, ok := this.fat[dir];
    if (!ok) {
-      return nil, NewIllegalOperationError("Cannot list non-existant dir: " + string(dir));
+      return nil, NewDoesntExistError(string(dir));
    }
 
    err := this.checkReadPermissions(user, dirInfo);
@@ -154,9 +159,86 @@ func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) 
    return this.dirs[dir], nil;
 }
 
-func (this *Driver) Remove(dirent dirent.Id) error {
-   // TODO(eriq)
+func (this *Driver) RemoveDir(user user.Id, dir dirent.Id) error {
+   dirInfo, ok := this.fat[dir];
+   if (!ok) {
+      return NewDoesntExistError(string(dir));
+   }
+
+   err := this.checkRecusiveWritePermissions(user, dirInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   if (dirInfo.IsFile) {
+      return NewIllegalOperationError("Cannot use RemoveDir() for a file, use RemoveFile() instead.");
+   }
+
+   return errors.WithStack(this.removeDir(dirInfo));
+}
+
+// Recursivley remove all dirents.
+// Go depth first (while hitting all files along the way).
+// Does not perform any permission checks.
+func (this *Driver) removeDir(dir *dirent.Dirent) error {
+   // First remove all children (recursively).
+   for _, child := range(this.dirs[dir.Id]) {
+      if (child.IsFile) {
+         err := this.removeFile(child);
+         if (err != nil) {
+            return errors.Wrap(err, string(dir.Id));
+         }
+      } else {
+         err := this.removeDir(child);
+         if (err != nil) {
+            return errors.Wrap(err, string(dir.Id));
+         }
+      }
+   }
+
+   // Remove from fat.
+   delete(this.fat, dir.Id);
+
+   this.cache.CacheDirentDelete(dir);
+
+   // Remove from the dir structure (as a child).
+   dirent.RemoveChild(this.dirs, dir);
+
+   // Remove the entry from dirs (as a parent).
+   delete(this.dirs, dir.Id);
+
    return nil;
+}
+
+func (this *Driver) RemoveFile(user user.Id, file dirent.Id) error {
+   fileInfo, ok := this.fat[file];
+   if (!ok) {
+      return NewDoesntExistError(string(file));
+   }
+
+   err := this.checkWritePermissions(user, fileInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   if (!fileInfo.IsFile) {
+      return NewIllegalOperationError("Cannot use RemoveFile() for a dir, use RemoveDir() instead.");
+   }
+
+   return errors.WithStack(this.removeFile(fileInfo));
+}
+
+// Does not perform any permission checks.
+func (this *Driver) removeFile(file *dirent.Dirent) error {
+   // Remove from fat first, just incase disk remove fails.
+   delete(this.fat, file.Id);
+
+   this.cache.CacheDirentDelete(file);
+
+   // Remove from the dir structure.
+   dirent.RemoveChild(this.dirs, file);
+
+   return errors.Wrap(this.connector.RemoveFile(file), string(file.Id));
 }
 
 func (this *Driver) Move(dirent dirent.Id, newParent dirent.Id) error {
@@ -206,7 +288,7 @@ func (this *Driver) GetDirent(user user.Id, id dirent.Id) (*dirent.Dirent, error
    // TODO(eriq): This leaks permissions
    info, ok := this.fat[id];
    if (!ok) {
-      return nil, errors.WithStack(NewIllegalOperationError("Dirent does not exist: " + string(id)));
+      return nil, errors.WithStack(NewDoesntExistError(string(id)));
    }
 
    err := this.checkReadPermissions(user, info);

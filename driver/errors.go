@@ -37,3 +37,15 @@ func NewAuthError(message string) *AuthError {
 func (this *AuthError) Error() string {
    return "Authentication Error: " + this.message;
 }
+
+type DoesntExistError struct {
+   message string
+}
+
+func NewDoesntExistError(message string) *DoesntExistError {
+   return &DoesntExistError{message};
+}
+
+func (this *DoesntExistError) Error() string {
+   return "Doesnt Exist Error: " + this.message;
+}

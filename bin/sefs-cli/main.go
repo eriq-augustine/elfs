@@ -50,6 +50,7 @@ func init() {
    commands[COMMAND_LOGIN] = login;
    commands["ls"] = ls;
    commands["mkdir"] = mkdir;
+   commands["rm"] = remove;
    commands["useradd"] = useradd;
    commands["userdel"] = userdel;
    commands["userlist"] = userlist;
@@ -361,6 +362,29 @@ func mkdir(command string, fsDriver *driver.Driver, args []string) error {
    fmt.Println(id);
 
    return nil;
+}
+
+func remove(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) < 1 || len(args) > 2 || (len(args) == 2 && args[0] != "-r")) {
+      return errors.New(fmt.Sprintf("USAGE: %s [-r] <dirent id>", command));
+   }
+
+   var isFile = true;
+   if (len(args) == 2) {
+      isFile = false;
+      args = args[1:];
+   }
+
+   var direntId dirent.Id = dirent.Id(args[0]);
+
+   var err error = nil;
+   if (isFile) {
+      err = fsDriver.RemoveFile(activeUser.Id, direntId);
+   } else {
+      err = fsDriver.RemoveDir(activeUser.Id, direntId);
+   }
+
+   return errors.WithStack(err);
 }
 
 func useradd(command string, fsDriver *driver.Driver, args []string) error {

@@ -39,3 +39,26 @@ func BuildDirs(fat map[Id]*Dirent) (map[Id][]*Dirent) {
 
    return dirs;
 }
+
+func RemoveChild(dirs map[Id][]*Dirent, target *Dirent) {
+   children, ok := dirs[target.Parent];
+   if (!ok) {
+      return;
+   }
+
+   var childIndex int = -1;
+   for i, child := range(children) {
+      if (child.Id == target.Id) {
+         childIndex = i;
+         break;
+      }
+   }
+
+   if (childIndex == -1) {
+      return;
+   }
+
+   // To delete: copy the last element into the target and reslice.
+   children[childIndex] = children[len(children) - 1];
+   dirs[target.Parent] = children[:len(children) - 1]
+}

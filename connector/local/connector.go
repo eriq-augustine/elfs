@@ -113,6 +113,10 @@ func (this *LocalConnector) GetMetadataWriter(metadataId string, blockCipher cip
    return cipherio.NewCipherWriter(file, blockCipher, iv);
 }
 
+func (this *LocalConnector) RemoveFile(file *dirent.Dirent) error {
+   return errors.WithStack(os.Remove(this.getDiskPath(file)));
+}
+
 func (this* LocalConnector) Close() error {
    activeConnectionsLock.Lock();
    defer activeConnectionsLock.Unlock();
