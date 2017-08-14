@@ -241,7 +241,48 @@ func (this *Driver) removeFile(file *dirent.Dirent) error {
    return errors.Wrap(this.connector.RemoveFile(file), string(file.Id));
 }
 
-func (this *Driver) Move(dirent dirent.Id, newParent dirent.Id) error {
+func (this *Driver) Move(user user.Id, target dirent.Id, newParent dirent.Id) error {
+   // We need write permissions on the dirent and parent dir.
+   targetInfo, ok := this.fat[target];
+   if (!ok) {
+      return errors.WithStack(NewDoesntExistError(string(target)));
+   }
+
+   newParentInfo, ok := this.fat[newParent];
+   if (!ok) {
+      return errors.WithStack(NewDoesntExistError(string(newParent)));
+   }
+
+   err := this.checkWritePermissions(user, targetInfo);
+   if (err != nil) {
+      return errors.Wrap(err, string(target));
+   }
+
+   err = this.checkWritePermissions(user, newParentInfo);
+   if (err != nil) {
+      return errors.Wrap(err, string(newParent));
+   }
+
+   if (newParentInfo.IsFile) {
+      return errors.WithStack(NewIllegalOperationError("Cannot move a dirent into a file, need a dir."));
+   }
+
+   if (targetInfo.Parent == newParent) {
+      return nil;
+   }
+
+   // Update dir structure: remove old reference, add new one.
+   dirent.RemoveChild(this.dirs, targetInfo);
+   this.dirs[newParent] = append(this.dirs[newParent], targetInfo);
+
+   // Update fat
+   targetInfo.Parent = newParent;
+   this.cache.CacheDirentPut(targetInfo);
+
+   return nil;
+}
+
+func (this *Driver) Rename(user user.Id, target dirent.Id, newName string) error {
    // TODO(eriq)
    return nil;
 }
@@ -256,8 +297,6 @@ func (this *Driver) MakeDir(user user.Id, name string,
       return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("MakeDir requires a non-nil group permissions. Empty is valid."));
    }
 
-   // TODO(eriq): Technically, this could be leaking information about
-   // the existance of a parent that the user does not have access to.
    _, ok := this.fat[parent];
    if (!ok) {
       return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("MakeDir requires an existing parent directory."));
@@ -285,7 +324,6 @@ func (this *Driver) MakeDir(user user.Id, name string,
 }
 
 func (this *Driver) GetDirent(user user.Id, id dirent.Id) (*dirent.Dirent, error) {
-   // TODO(eriq): This leaks permissions
    info, ok := this.fat[id];
    if (!ok) {
       return nil, errors.WithStack(NewDoesntExistError(string(id)));

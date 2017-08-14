@@ -50,6 +50,7 @@ func init() {
    commands[COMMAND_LOGIN] = login;
    commands["ls"] = ls;
    commands["mkdir"] = mkdir;
+   commands["mv"] = move;
    commands["rm"] = remove;
    commands["useradd"] = useradd;
    commands["userdel"] = userdel;
@@ -362,6 +363,17 @@ func mkdir(command string, fsDriver *driver.Driver, args []string) error {
    fmt.Println(id);
 
    return nil;
+}
+
+func move(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <target id> <new parent id>", command));
+   }
+
+   var targetId dirent.Id = dirent.Id(args[0]);
+   var newParentId dirent.Id = dirent.Id(args[1]);
+
+   return errors.WithStack(fsDriver.Move(activeUser.Id, targetId, newParentId));
 }
 
 func remove(command string, fsDriver *driver.Driver, args []string) error {
