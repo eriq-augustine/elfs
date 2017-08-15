@@ -6,6 +6,7 @@ import (
    "flag"
    "fmt"
    "io"
+   "io/ioutil"
    "os"
    "path/filepath"
    "strconv"
@@ -293,17 +294,51 @@ func importFile(command string, fsDriver *driver.Driver, args []string) error {
       parent = dirent.Id(args[1]);
    }
 
-   fileReader, err := os.Open(localPath);
+   return errors.WithStack(recursiveImport(fsDriver, localPath, parent));
+}
+
+func importFileInternal(fsDriver *driver.Driver, path string, parent dirent.Id) error {
+   fileReader, err := os.Open(path);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to open local file for reading: " + localPath);
+      return errors.Wrap(err, path);
    }
    defer fileReader.Close();
 
-   err = fsDriver.Put(activeUser.Id, filepath.Base(localPath), fileReader, map[group.Id]group.Permission{}, parent);
+   err = fsDriver.Put(activeUser.Id, filepath.Base(path), fileReader, map[group.Id]group.Permission{}, parent);
    if (err != nil) {
-      return errors.Wrap(err, "Failed to put imported file: " + localPath);
+      return errors.Wrap(err, path);
    }
 
+   return nil;
+}
+
+func recursiveImport(fsDriver *driver.Driver, path string, parent dirent.Id) error {
+   fileInfo, err := os.Stat(path);
+   if (err != nil) {
+      return errors.Wrap(err, path);
+   }
+
+   if (!fileInfo.IsDir()) {
+      return errors.WithStack(importFileInternal(fsDriver, path, parent));
+   }
+
+   // First make the actual dir and then import the children.
+   newId, err := fsDriver.MakeDir(activeUser.Id, fileInfo.Name(), parent, map[group.Id]group.Permission{});
+   if (err != nil) {
+      return errors.Wrap(err, path);
+   }
+
+   children, err := ioutil.ReadDir(path);
+   if (err != nil) {
+      return errors.Wrap(err, path);
+   }
+
+   for _, child := range(children) {
+      err = recursiveImport(fsDriver, filepath.Join(path, child.Name()), newId);
+      if (err != nil) {
+         return errors.Wrap(err, path);
+      }
+   }
 
    return nil;
 }
