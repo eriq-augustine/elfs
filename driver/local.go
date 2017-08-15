@@ -10,7 +10,7 @@ import (
 )
 
 func NewLocalDriver(key []byte, iv []byte, path string) (*Driver, error) {
-   connector, err := local.NewLocalConnector(path);
+   connector, err := local.NewLocalConnector(path, false);
    if (err != nil) {
       return nil, errors.Wrap(err, "Failed to get local connector.");
    }

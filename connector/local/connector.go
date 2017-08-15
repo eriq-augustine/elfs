@@ -5,8 +5,10 @@ package local;
 
 import (
    "crypto/cipher"
-   "path/filepath"
+   "fmt"
+   "io/ioutil"
    "os"
+   "path/filepath"
    "sync"
 
    "github.com/pkg/errors"
@@ -15,7 +17,9 @@ import (
    "github.com/eriq-augustine/s3efs/dirent"
 )
 
-// TODO(eriq): Lock files.
+const (
+   LOCK_FILENAME = ".local_lock"
+)
 
 // Keep track of the active connections so two instances don't connect to the same storage.
 var activeConnections map[string]bool;
@@ -30,7 +34,11 @@ type LocalConnector struct {
    path string
 }
 
-func NewLocalConnector(path string) (*LocalConnector, error) {
+// Create a new connection to a local filesystem.
+// There should only ever be one connection to a filesystem at a time.
+// If an old connection has not been properly closed, then the force parameter
+// may be used to cleanup the old connection.
+func NewLocalConnector(path string, force bool) (*LocalConnector, error) {
    activeConnectionsLock.Lock();
    defer activeConnectionsLock.Unlock();
 
@@ -47,6 +55,11 @@ func NewLocalConnector(path string) (*LocalConnector, error) {
    var connector LocalConnector = LocalConnector {
       path: path,
    };
+
+   err = connector.lock(force);
+   if (err != nil) {
+      return nil, errors.Wrap(err, path);
+   }
 
    return &connector, nil;
 }
@@ -122,5 +135,44 @@ func (this* LocalConnector) Close() error {
    defer activeConnectionsLock.Unlock();
 
    activeConnections[this.path] = false;
+   this.unlock();
+
    return nil;
+}
+
+func (this* LocalConnector) lock(force bool) error {
+   lockPath, err := filepath.Abs(filepath.Join(this.path, LOCK_FILENAME));
+   if (err != nil) {
+      return errors.Wrap(err, this.path);
+   }
+
+   inFile, err := os.Open(lockPath);
+   if (err != nil && !os.IsNotExist(err)) {
+      return errors.Wrap(err, lockPath);
+   }
+   defer inFile.Close();
+
+   // Lock already exists and we were not told to force it.
+   if (err == nil && !force) {
+      pid, err := ioutil.ReadAll(inFile);
+      if (err != nil) {
+         return errors.Wrap(err, lockPath);
+      }
+
+      return errors.Errorf("Local filesystem (at %s) already owned by [%s]." +
+            " Ensure that the processes is dead and remove the lock or force the connector.",
+            this.path, string(pid));
+   }
+
+   // Lock doesn't exist, or we can force it.
+   return errors.Wrap(ioutil.WriteFile(lockPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0600), lockPath);
+}
+
+func (this* LocalConnector) unlock() error {
+   lockPath, err := filepath.Abs(filepath.Join(this.path, LOCK_FILENAME));
+   if (err != nil) {
+      return errors.Wrap(err, this.path);
+   }
+
+   return errors.Wrap(os.Remove(lockPath), lockPath);
 }
