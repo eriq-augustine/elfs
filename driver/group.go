@@ -98,7 +98,28 @@ func (this *Driver) JoinGroup(contextUser user.Id, targetUser user.Id, groupId g
 }
 
 func (this *Driver) KickUser(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
-   // TODO(eriq)
+   groupInfo, ok := this.groups[groupId];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot kick from an unknown group."));
+   }
+
+   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   if (!groupInfo.Users[targetUser]) {
+      return nil;
+   }
+
+   // Only root can kick an admin.
+   if (contextUser != user.ROOT_ID && groupInfo.Admins[targetUser]) {
+      return errors.WithStack(NewIllegalOperationError("Only root can kick an admin."));
+   }
+
+   delete(groupInfo.Users, targetUser);
+   this.cache.CacheGroupPut(groupInfo);
+
    return nil;
 }
 

@@ -49,6 +49,7 @@ func init() {
    commands["groupadd"] = groupadd;
    commands["groupdel"] = groupdel;
    commands["groupjoin"] = groupjoin;
+   commands["groupkick"] = groupkick;
    commands["grouplist"] = grouplist;
    commands["help"] = help;
    commands["import"] = importFile;
@@ -544,6 +545,24 @@ func groupjoin(command string, fsDriver *driver.Driver, args []string) error {
    }
 
    return errors.WithStack(fsDriver.JoinGroup(activeUser.Id, user.Id(userId), group.Id(groupId)));
+}
+
+func groupkick(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <group id> <user id>", command));
+   }
+
+   groupId, err := strconv.Atoi(args[0]);
+   if (err != nil) {
+      return errors.Wrap(err, args[0]);
+   }
+
+   userId, err := strconv.Atoi(args[1]);
+   if (err != nil) {
+      return errors.Wrap(err, args[1]);
+   }
+
+   return errors.WithStack(fsDriver.KickUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
 }
 
 func grouplist(command string, fsDriver *driver.Driver, args []string) error {
