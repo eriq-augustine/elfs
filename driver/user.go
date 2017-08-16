@@ -97,10 +97,17 @@ func (this *Driver) UserAuth(name string, weakhash string) (*user.User, error) {
 
 // Transfer owneership of all files from one user to another.
 func (this *Driver) transferOwnership(oldUser user.Id, newUser user.Id) {
-   // TODO(eriq)
+   for _, entry := range(this.fat) {
+      if (entry.Owner == oldUser) {
+         entry.Owner = newUser;
+      }
+   }
 }
 
 // Remove all traces of a user from all groups.
 func (this *Driver) purgeFromGroups(targetUser user.Id) {
-   // TODO(eriq)
+   for _, group := range(this.groups) {
+      delete(group.Admins, targetUser);
+      delete(group.Users, targetUser);
+   }
 }

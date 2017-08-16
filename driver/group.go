@@ -62,6 +62,11 @@ func (this *Driver) DemoteUser(contextUser user.Id, targetUser user.Id, groupId 
       return errors.WithStack(NewIllegalOperationError("Cannot demote in unknown group."));
    }
 
+   _, ok = this.users[targetUser];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Demotion candidate does not exist."));
+   }
+
    if (!groupInfo.Admins[targetUser]) {
       return nil;
    }
@@ -87,6 +92,11 @@ func (this *Driver) JoinGroup(contextUser user.Id, targetUser user.Id, groupId g
       return errors.WithStack(err);
    }
 
+   _, ok = this.users[targetUser];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Group join candidate does not exist."));
+   }
+
    if (groupInfo.Users[targetUser]) {
       return nil;
    }
@@ -106,6 +116,11 @@ func (this *Driver) KickUser(contextUser user.Id, targetUser user.Id, groupId gr
    err := this.checkGroupAdminPermissions(contextUser, groupInfo);
    if (err != nil) {
       return errors.WithStack(err);
+   }
+
+   _, ok = this.users[targetUser];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Kick candidate does not exist."));
    }
 
    if (!groupInfo.Users[targetUser]) {
@@ -132,6 +147,11 @@ func (this *Driver) PromoteUser(contextUser user.Id, targetUser user.Id, groupId
    err := this.checkGroupAdminPermissions(contextUser, groupInfo);
    if (err != nil) {
       return errors.WithStack(err);
+   }
+
+   _, ok = this.users[targetUser];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Promotion candidate does not exist."));
    }
 
    if (!groupInfo.Users[targetUser]) {

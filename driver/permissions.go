@@ -13,14 +13,17 @@ import (
 )
 
 func (this *Driver) ChangeOwner(dirent dirent.Id, newOnwer user.Id) error {
+   // TODO(eriq)
    return nil;
 }
 
 func (this *Driver) RemoveGroupAccess(dirent dirent.Id, group group.Id) error {
+   // TODO(eriq)
    return nil;
 }
 
 func (this *Driver) PutGroupAccess(dirent dirent.Id, permissions group.Permission) error {
+   // TODO(eriq)
    return nil;
 }
 
