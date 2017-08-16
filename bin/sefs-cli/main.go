@@ -64,6 +64,9 @@ func init() {
    commands["useradd"] = useradd;
    commands["userdel"] = userdel;
    commands["userlist"] = userlist;
+   commands["chown"] = chown;
+   commands["permadd"] = permissionAdd;
+   commands["permdel"] = permissionDelete;
 }
 
 func main() {
@@ -650,4 +653,61 @@ func promote(command string, fsDriver *driver.Driver, args []string) error {
    }
 
    return errors.WithStack(fsDriver.PromoteUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
+}
+
+func chown(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <dirent id> <new owner id>", command));
+   }
+
+   var direntId dirent.Id = dirent.Id(args[0]);
+
+   userId, err := strconv.Atoi(args[1]);
+   if (err != nil) {
+      return errors.Wrap(err, args[1]);
+   }
+
+   return errors.WithStack(fsDriver.ChangeOwner(activeUser.Id, direntId, user.Id(userId)));
+}
+
+func permissionAdd(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 3) {
+      return errors.New(fmt.Sprintf("USAGE: %s <dirent id> <group id> <2|4|6>", command));
+   }
+
+   var direntId dirent.Id = dirent.Id(args[0]);
+
+   groupId, err := strconv.Atoi(args[1]);
+   if (err != nil) {
+      return errors.Wrap(err, args[1]);
+   }
+
+   permission, err := strconv.Atoi(args[2]);
+   if (err != nil) {
+      return errors.Wrap(err, args[2]);
+   }
+
+   if (permission != 2 && permission != 4 && permission != 6) {
+      return errors.Errorf("Bad permission number: %d. Use UNIX-style for read and write", permission);
+   }
+
+   var read bool = (permission % 4 == 0);
+   var write bool = (permission % 2 == 0);
+
+   return errors.WithStack(fsDriver.PutGroupAccess(activeUser.Id, direntId, group.Id(groupId), group.NewPermission(read, write)));
+}
+
+func permissionDelete(command string, fsDriver *driver.Driver, args []string) error {
+   if (len(args) != 2) {
+      return errors.New(fmt.Sprintf("USAGE: %s <dirent id> <group id>", command));
+   }
+
+   var direntId dirent.Id = dirent.Id(args[0]);
+
+   groupId, err := strconv.Atoi(args[1]);
+   if (err != nil) {
+      return errors.Wrap(err, args[1]);
+   }
+
+   return errors.WithStack(fsDriver.RemoveGroupAccess(activeUser.Id, direntId, group.Id(groupId)));
 }

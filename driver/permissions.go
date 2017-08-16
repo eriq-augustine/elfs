@@ -12,19 +12,91 @@ import (
    "github.com/eriq-augustine/s3efs/user"
 )
 
-func (this *Driver) ChangeOwner(dirent dirent.Id, newOnwer user.Id) error {
-   // TODO(eriq)
+func (this *Driver) ChangeOwner(contextUser user.Id, dirent dirent.Id, newOwner user.Id) error {
+   if (contextUser != user.ROOT_ID) {
+      return errors.WithStack(NewIllegalOperationError("Only root can change owners."));
+   }
+
+   direntInfo, ok := this.fat[dirent];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot change the owner of a non-existant dirent."));
+   }
+
+   _, ok = this.users[newOwner];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot change owner to a non-existant user."));
+   }
+
+   if (newOwner == direntInfo.Owner) {
+      return nil;
+   }
+
+   direntInfo.Owner = newOwner;
+   this.cache.CacheDirentPut(direntInfo);
+
    return nil;
 }
 
-func (this *Driver) RemoveGroupAccess(dirent dirent.Id, group group.Id) error {
-   // TODO(eriq)
+func (this *Driver) RemoveGroupAccess(contextUser user.Id, dirent dirent.Id, group group.Id) error {
+   direntInfo, ok := this.fat[dirent];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot remove group access on a non-existant dirent."));
+   }
+
+   _, ok = this.groups[group];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot remove group access for a non-existant group."));
+   }
+
+   err := this.checkOwnerPermissions(contextUser, direntInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   _, ok = direntInfo.GroupPermissions[group];
+   if (!ok) {
+      return nil;
+   }
+
+   delete(direntInfo.GroupPermissions, group);
+   this.cache.CacheDirentPut(direntInfo);
+
    return nil;
 }
 
-func (this *Driver) PutGroupAccess(dirent dirent.Id, permissions group.Permission) error {
-   // TODO(eriq)
+func (this *Driver) PutGroupAccess(contextUser user.Id, dirent dirent.Id, group group.Id, permissions group.Permission) error {
+   direntInfo, ok := this.fat[dirent];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot put group access on a non-existant dirent."));
+   }
+
+   _, ok = this.groups[group];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot put group access for a non-existant group."));
+   }
+
+   err := this.checkOwnerPermissions(contextUser, direntInfo);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   direntInfo.GroupPermissions[group] = permissions;
+   this.cache.CacheDirentPut(direntInfo);
+
    return nil;
+}
+
+// The actual owner and root get granted permission for this.
+func (this *Driver) checkOwnerPermissions(userId user.Id, direntInfo *dirent.Dirent) error {
+   if (userId == user.ROOT_ID) {
+      return nil;
+   }
+
+   if (userId == direntInfo.Owner) {
+      return nil;
+   }
+
+   return NewPermissionsError("Need owner access.");
 }
 
 // To create a file, we only need write on the parent directory.
