@@ -23,9 +23,6 @@ import (
    "github.com/eriq-augustine/s3efs/util"
 )
 
-// TODO(eriq): Don't allow create as a command.
-//  If dir/fat does not initially exist, prompt for root info and create.
-
 // Params: (invocation name, fs driver, args (not including invocation)).
 type commandFunction func(string, *driver.Driver, []string) error;
 
@@ -228,7 +225,6 @@ func export(command string, fsDriver *driver.Driver, args []string) error {
       return errors.Wrap(err, "Failed to get dirent for export");
    }
 
-   // TODO(eriq): -r
    if (!fileInfo.IsFile) {
       return errors.New("Recursive export is currently not supported.");
    }

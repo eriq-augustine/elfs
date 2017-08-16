@@ -17,10 +17,6 @@ import (
    "github.com/eriq-augustine/s3efs/user"
 )
 
-// TODO(eriq): Writes to FAT probably need a lock.
-
-// TODO(eriq): Need to async operations and keep track of what files currently have read or writes.
-
 type Driver struct {
    connector connector.Connector
    blockCipher cipher.Block

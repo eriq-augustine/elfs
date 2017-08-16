@@ -25,9 +25,6 @@ import (
    "github.com/eriq-augustine/s3efs/user"
 )
 
-// TODO(eriq): Ponder how we could not have to write then entire cache every time.
-//  It should never be too big, so maybe don't even worry about it.
-
 // There should only be one cache for each connector.
 var activeCaches map[string]bool;
 var activeCachesLock *sync.Mutex;
@@ -41,6 +38,7 @@ type MetadataCache struct {
    // We will keep the connector id hashed so we don't leak any information.
    connectorId string
    cachePath string
+   lock *sync.Mutex
    blockCipher cipher.Block
    iv []byte
    // Nil values represents delete.
@@ -61,12 +59,12 @@ func NewMetadataCache(connector connector.Connector, blockCipher cipher.Block,
       return nil, errors.New("Cannot create two caches on the same connector.");
    }
 
-   // TODO(eriq): Check config for this?
    var cachePath string = filepath.Join(os.TempDir(), connectorId);
 
    var metadataCache *MetadataCache = &MetadataCache{
       connectorId: connectorId,
       cachePath: cachePath,
+      lock: &sync.Mutex{},
       blockCipher: blockCipher,
       iv: iv,
       fat: make(map[dirent.Id]*dirent.Dirent),
@@ -83,6 +81,9 @@ func NewMetadataCache(connector connector.Connector, blockCipher cipher.Block,
 }
 
 func (this *MetadataCache) Clear() {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    this.fat =  make(map[dirent.Id]*dirent.Dirent);
    this.users = make(map[user.Id]*user.User);
    this.groups = make(map[group.Id]*group.Group);
@@ -91,53 +92,86 @@ func (this *MetadataCache) Clear() {
 }
 
 func (this *MetadataCache) IsEmpty() bool {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    return len(this.fat) == 0 && len(this.users) == 0 && len(this.groups) == 0;
 }
 
 func (this *MetadataCache) GetFat() map[dirent.Id]*dirent.Dirent {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    return this.fat;
 }
 
 func (this *MetadataCache) GetUsers() map[user.Id]*user.User {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    return this.users;
 }
 
 func (this *MetadataCache) GetGroups() map[group.Id]*group.Group {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    return this.groups;
 }
 
 // Put this dirent in the semi-durable cache.
 func (this *MetadataCache) CacheDirentPut(info *dirent.Dirent) error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    this.fat[info.Id] = info;
    return errors.WithStack(this.write());
 }
 
 func (this *MetadataCache) CacheDirentDelete(info *dirent.Dirent) error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    this.fat[info.Id] = nil;
    return errors.WithStack(this.write());
 }
 
 func (this *MetadataCache) CacheUserPut(info *user.User) error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    this.users[info.Id] = info;
    return errors.WithStack(this.write());
 }
 
 func (this *MetadataCache) CacheUserDelete(info *user.User) error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    this.users[info.Id] = nil;
    return errors.WithStack(this.write());
 }
 
 func (this *MetadataCache) CacheGroupPut(info *group.Group) error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    this.groups[info.Id] = info;
    return errors.WithStack(this.write());
 }
 
 func (this *MetadataCache) CacheGroupDelete(info *group.Group) error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    this.groups[info.Id] = nil;
    return errors.WithStack(this.write());
 }
 
 func (this *MetadataCache) Close() error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    activeCachesLock.Lock();
    defer activeCachesLock.Unlock();
 
@@ -146,10 +180,16 @@ func (this *MetadataCache) Close() error {
 }
 
 func (this *MetadataCache) init() error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    return errors.WithStack(this.read());
 }
 
 func (this *MetadataCache) read() error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    file, err := os.Open(this.cachePath);
    if (err != nil) {
       if (os.IsNotExist(err)) {
@@ -191,6 +231,9 @@ func (this *MetadataCache) read() error {
 }
 
 func (this *MetadataCache) write() error {
+   this.lock.Lock();
+   defer this.lock.Unlock();
+
    file, err := os.Create(this.cachePath);
    if (err != nil) {
       return errors.WithStack(err);

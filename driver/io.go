@@ -2,9 +2,6 @@ package driver;
 
 // IO operations that specificially deal with single files.
 
-// TODO(eriq): There are several places here were we leak information because
-// we tell the that some file exists or they don't have permissions.
-
 import (
    "io"
    "time"
