@@ -20,8 +20,11 @@ import (
 type Driver struct {
    connector connector.Connector
    blockCipher cipher.Block
+   fatVersion int
    fat map[dirent.Id]*dirent.Dirent
+   usersVersion int
    users map[user.Id]*user.User
+   groupsVersion int
    groups map[group.Id]*group.Group
    cache *cache.MetadataCache
    // A map of all directories to their children.
@@ -33,6 +36,10 @@ type Driver struct {
    groupsIV []byte
    fatIV []byte
    cacheIV []byte
+   // IVs for shadow tables.
+   shadowUsersIV []byte
+   shadowGroupsIV []byte
+   shadowFatIV []byte
 }
 
 // Get a new, uninitialized driver.
@@ -48,8 +55,11 @@ func newDriver(key []byte, iv []byte, connector connector.Connector) (*Driver, e
    var driver Driver = Driver{
       connector: connector,
       blockCipher: blockCipher,
+      fatVersion: 0,
       fat: make(map[dirent.Id]*dirent.Dirent),
+      usersVersion: 0,
       users: make(map[user.Id]*user.User),
+      groupsVersion: 0,
       groups: make(map[group.Id]*group.Group),
       cache: nil,
       dirs: make(map[dirent.Id][]*dirent.Dirent),

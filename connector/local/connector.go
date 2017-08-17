@@ -52,6 +52,8 @@ func NewLocalConnector(path string, force bool) (*LocalConnector, error) {
       return nil, errors.Errorf("Cannot create two connections to the same storage: %s", path);
    }
 
+   os.MkdirAll(path, 0700);
+
    var connector LocalConnector = LocalConnector {
       path: path,
    };
@@ -128,6 +130,10 @@ func (this *LocalConnector) GetMetadataWriter(metadataId string, blockCipher cip
 
 func (this *LocalConnector) RemoveFile(file *dirent.Dirent) error {
    return errors.WithStack(os.Remove(this.getDiskPath(file)));
+}
+
+func (this *LocalConnector) RemoveMetadataFile(metadataId string) error {
+   return errors.WithStack(os.Remove(this.getMetadataPath(metadataId)));
 }
 
 func (this* LocalConnector) Close() error {

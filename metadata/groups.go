@@ -16,13 +16,13 @@ import (
 // However, the reader WILL be closed.
 // We are using a json decoder that may consume extra bytes at the end, therefore
 // if we left the reader open it may give inconistent reads.
-func ReadGroups(groups map[group.Id]*group.Group, reader *cipherio.CipherReader) error {
-   err := ReadGroupsWithDecoder(groups, json.NewDecoder(reader));
+func ReadGroups(groups map[group.Id]*group.Group, reader *cipherio.CipherReader) (int, error) {
+   version, err := ReadGroupsWithDecoder(groups, json.NewDecoder(reader));
    if (err != nil) {
-      return errors.WithStack(err);
+      return 0, errors.WithStack(err);
    }
 
-   return errors.WithStack(reader.Close());
+   return version, errors.WithStack(reader.Close());
 }
 
 // Same as the other read, but we will read directly from a deocder
@@ -30,10 +30,10 @@ func ReadGroups(groups map[group.Id]*group.Group, reader *cipherio.CipherReader)
 // This is expecially useful if there are multiple
 // sections of metadata written to the same file
 // (since the JSON decoder may read extra bytes).
-func ReadGroupsWithDecoder(groups map[group.Id]*group.Group, decoder *json.Decoder) error {
-   size, err := decodeMetadata(decoder);
+func ReadGroupsWithDecoder(groups map[group.Id]*group.Group, decoder *json.Decoder) (int, error) {
+   size, version, err := decodeMetadata(decoder);
    if (err != nil) {
-      return errors.Wrap(err, "Could not decode group metadata.");
+      return 0, errors.Wrap(err, "Could not decode group metadata.");
    }
 
    // Read all the groups.
@@ -41,21 +41,21 @@ func ReadGroupsWithDecoder(groups map[group.Id]*group.Group, decoder *json.Decod
       var entry group.Group;
       err = decoder.Decode(&entry);
       if (err != nil) {
-         return errors.Wrap(err, "Failed to read group.");
+         return 0, errors.Wrap(err, "Failed to read group.");
       }
 
       groups[entry.Id] = &entry;
    }
 
-   return nil;
+   return version, nil;
 }
 
 // Write all groups.
 // This function will not close the given reader.
-func WriteGroups(groups map[group.Id]*group.Group, writer *cipherio.CipherWriter) error {
+func WriteGroups(groups map[group.Id]*group.Group, version int, writer *cipherio.CipherWriter) error {
    var encoder *json.Encoder = json.NewEncoder(writer);
 
-   err := encodeMetadata(encoder, len(groups));
+   err := encodeMetadata(encoder, len(groups), version);
    if (err != nil) {
       return errors.Wrap(err, "Could not encode groups metadata.");
    }

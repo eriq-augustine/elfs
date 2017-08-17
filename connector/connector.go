@@ -22,6 +22,7 @@ type Connector interface {
    GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (*cipherio.CipherReader, error)
    GetCipherWriter(fileInfo *dirent.Dirent, blockCipher cipher.Block) (*cipherio.CipherWriter, error)
    GetMetadataWriter(metadataId string, blockCipher cipher.Block, iv []byte) (*cipherio.CipherWriter, error)
+   RemoveMetadataFile(metadataId string) error
    RemoveFile(file *dirent.Dirent) error
    Close() error
 }

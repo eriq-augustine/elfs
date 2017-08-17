@@ -12,3 +12,13 @@ func IncrementBytes(bytes []byte) {
       }
    }
 }
+
+func IncrementBytesByCount(bytes []byte, count int) {
+   if (count < 0) {
+      panic("Cannot increment bytes by negative count");
+   }
+
+   for i := 0; i < count; i++ {
+      IncrementBytes(bytes);
+   }
+}

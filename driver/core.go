@@ -13,7 +13,7 @@ import (
 )
 
 func (this *Driver) Close() {
-   this.SyncToDisk();
+   this.SyncToDisk(false);
    this.connector.Close();
 }
 
@@ -38,7 +38,7 @@ func (this *Driver) CreateFilesystem(rootPasshash string) error {
          permissions, dirent.ROOT_ID, time.Now().Unix());
 
    // Force a write of the FAT, users, and groups.
-   this.SyncToDisk();
+   this.SyncToDisk(true);
 
    return nil;
 }
@@ -74,7 +74,11 @@ func (this *Driver) SyncFromDisk() error {
 }
 
 // Write all metadata to disk and clear the cache after.
-func (this *Driver) SyncToDisk() error {
+func (this *Driver) SyncToDisk(force bool) error {
+   if (!force && this.cache.IsEmpty()) {
+      return nil;
+   }
+
    err := this.writeFat();
    if (err != nil) {
       return errors.Wrap(err, "Could not write FAT");
@@ -127,5 +131,5 @@ func (this *Driver) loadFromCache() error {
       }
    }
 
-   return errors.WithStack(this.SyncToDisk());
+   return errors.WithStack(this.SyncToDisk(false));
 }

@@ -187,9 +187,6 @@ func (this *MetadataCache) init() error {
 }
 
 func (this *MetadataCache) read() error {
-   this.lock.Lock();
-   defer this.lock.Unlock();
-
    file, err := os.Open(this.cachePath);
    if (err != nil) {
       if (os.IsNotExist(err)) {
@@ -212,17 +209,17 @@ func (this *MetadataCache) read() error {
    this.users = make(map[user.Id]*user.User);
    this.groups = make(map[group.Id]*group.Group);
 
-   err = metadata.ReadFatWithDecoder(this.fat, decoder);
+   _, err = metadata.ReadFatWithDecoder(this.fat, decoder);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   err = metadata.ReadUsersWithDecoder(this.users, decoder);
+   _, err = metadata.ReadUsersWithDecoder(this.users, decoder);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   err = metadata.ReadGroupsWithDecoder(this.groups, decoder);
+   _, err = metadata.ReadGroupsWithDecoder(this.groups, decoder);
    if (err != nil) {
       return errors.WithStack(err);
    }
@@ -231,9 +228,6 @@ func (this *MetadataCache) read() error {
 }
 
 func (this *MetadataCache) write() error {
-   this.lock.Lock();
-   defer this.lock.Unlock();
-
    file, err := os.Create(this.cachePath);
    if (err != nil) {
       return errors.WithStack(err);
@@ -245,17 +239,17 @@ func (this *MetadataCache) write() error {
       return errors.WithStack(err);
    }
 
-   err = metadata.WriteFat(this.fat, writer);
+   err = metadata.WriteFat(this.fat, 0, writer);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   err = metadata.WriteUsers(this.users, writer);
+   err = metadata.WriteUsers(this.users, 0, writer);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   err = metadata.WriteGroups(this.groups, writer);
+   err = metadata.WriteGroups(this.groups, 0, writer);
    if (err != nil) {
       return errors.WithStack(err);
    }
