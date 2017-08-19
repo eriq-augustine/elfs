@@ -15,12 +15,12 @@ import (
    "github.com/pkg/errors"
    shellquote "github.com/kballard/go-shellquote"
 
-   "github.com/eriq-augustine/s3efs/cipherio"
-   "github.com/eriq-augustine/s3efs/dirent"
-   "github.com/eriq-augustine/s3efs/driver"
-   "github.com/eriq-augustine/s3efs/group"
-   "github.com/eriq-augustine/s3efs/user"
-   "github.com/eriq-augustine/s3efs/util"
+   "github.com/eriq-augustine/elfs/cipherio"
+   "github.com/eriq-augustine/elfs/dirent"
+   "github.com/eriq-augustine/elfs/driver"
+   "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 // Params: (invocation name, fs driver, args (not including invocation)).

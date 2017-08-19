@@ -7,8 +7,8 @@ import (
 
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/cipherio"
-   "github.com/eriq-augustine/s3efs/user"
+   "github.com/eriq-augustine/elfs/cipherio"
+   "github.com/eriq-augustine/elfs/user"
 )
 
 // Read all users into memory.

@@ -5,8 +5,8 @@ import (
 
    "github.com/eriq-augustine/golog"
 
-   "github.com/eriq-augustine/s3efs/group"
-   "github.com/eriq-augustine/s3efs/user"
+   "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/user"
 )
 
 // Can the specified user write to this dirent.

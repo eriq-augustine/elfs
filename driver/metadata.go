@@ -8,11 +8,11 @@ import (
    "github.com/eriq-augustine/golog"
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/dirent"
-   "github.com/eriq-augustine/s3efs/group"
-   "github.com/eriq-augustine/s3efs/metadata"
-   "github.com/eriq-augustine/s3efs/user"
-   "github.com/eriq-augustine/s3efs/util"
+   "github.com/eriq-augustine/elfs/dirent"
+   "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/metadata"
+   "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 const (

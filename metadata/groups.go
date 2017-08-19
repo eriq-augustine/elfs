@@ -7,8 +7,8 @@ import (
 
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/cipherio"
-   "github.com/eriq-augustine/s3efs/group"
+   "github.com/eriq-augustine/elfs/cipherio"
+   "github.com/eriq-augustine/elfs/group"
 )
 
 // Read all groups into memory.

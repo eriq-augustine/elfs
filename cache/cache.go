@@ -16,13 +16,13 @@ import (
 
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/dirent"
-   "github.com/eriq-augustine/s3efs/cipherio"
-   "github.com/eriq-augustine/s3efs/connector"
-   "github.com/eriq-augustine/s3efs/group"
-   "github.com/eriq-augustine/s3efs/metadata"
-   "github.com/eriq-augustine/s3efs/util"
-   "github.com/eriq-augustine/s3efs/user"
+   "github.com/eriq-augustine/elfs/dirent"
+   "github.com/eriq-augustine/elfs/cipherio"
+   "github.com/eriq-augustine/elfs/connector"
+   "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/metadata"
+   "github.com/eriq-augustine/elfs/util"
+   "github.com/eriq-augustine/elfs/user"
 )
 
 // There should only be one cache for each connector.

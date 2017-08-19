@@ -13,8 +13,8 @@ import (
 
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/cipherio"
-   "github.com/eriq-augustine/s3efs/dirent"
+   "github.com/eriq-augustine/elfs/cipherio"
+   "github.com/eriq-augustine/elfs/dirent"
 )
 
 const (

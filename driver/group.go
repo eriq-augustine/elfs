@@ -5,8 +5,8 @@ package driver;
 import (
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/group"
-   "github.com/eriq-augustine/s3efs/user"
+   "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/user"
 )
 
 func (this *Driver) AddGroup(contextUser user.Id, name string) (group.Id, error) {

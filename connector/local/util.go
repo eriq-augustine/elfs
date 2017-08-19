@@ -7,7 +7,7 @@ import (
 
    "github.com/eriq-augustine/golog"
 
-   "github.com/eriq-augustine/s3efs/dirent"
+   "github.com/eriq-augustine/elfs/dirent"
 )
 
 func (this *LocalConnector) getDiskPath(direntInfo *dirent.Dirent) string {

@@ -14,7 +14,7 @@ import (
 
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/util"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 // A WriteCloser that will write an encrypted file from cleartext bytes.

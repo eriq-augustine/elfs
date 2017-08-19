@@ -1,7 +1,7 @@
 package group;
 
 import (
-   "github.com/eriq-augustine/s3efs/user"
+   "github.com/eriq-augustine/elfs/user"
 )
 
 const (

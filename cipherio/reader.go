@@ -10,7 +10,7 @@ import (
 
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/util"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 // A ReadCloser that will read an encrypted file, decrypt them, and return the cleartext

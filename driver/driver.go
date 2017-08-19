@@ -10,11 +10,11 @@ import (
 
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/cache"
-   "github.com/eriq-augustine/s3efs/connector"
-   "github.com/eriq-augustine/s3efs/dirent"
-   "github.com/eriq-augustine/s3efs/group"
-   "github.com/eriq-augustine/s3efs/user"
+   "github.com/eriq-augustine/elfs/cache"
+   "github.com/eriq-augustine/elfs/connector"
+   "github.com/eriq-augustine/elfs/dirent"
+   "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/user"
 )
 
 type Driver struct {

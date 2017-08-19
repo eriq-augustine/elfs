@@ -1,2 +1,2 @@
-# s3-efs
-S3 Encrypted Filesystem Driver
+# elfs
+Encrypted Large FileSystem Driver

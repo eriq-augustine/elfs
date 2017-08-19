@@ -6,7 +6,7 @@ package driver;
 import (
    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/s3efs/connector/local"
+   "github.com/eriq-augustine/elfs/connector/local"
 )
 
 func NewLocalDriver(key []byte, iv []byte, path string) (*Driver, error) {

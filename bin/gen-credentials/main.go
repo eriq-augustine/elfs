@@ -4,7 +4,7 @@ import (
    "encoding/hex"
    "fmt"
 
-   "github.com/eriq-augustine/s3efs/util"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 func main() {
