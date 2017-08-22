@@ -17,6 +17,10 @@ func (this *Driver) Close() {
    this.connector.Close();
 }
 
+func (this *Driver) ConnectionString() string {
+   return this.connector.GetId();
+}
+
 // Create a new filesystem.
 func (this *Driver) CreateFilesystem(rootPasshash string) error {
    this.connector.PrepareStorage();

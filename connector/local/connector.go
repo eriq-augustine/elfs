@@ -14,6 +14,7 @@ import (
    "github.com/pkg/errors"
 
    "github.com/eriq-augustine/elfs/cipherio"
+   "github.com/eriq-augustine/elfs/connector"
    "github.com/eriq-augustine/elfs/dirent"
 )
 
@@ -67,7 +68,7 @@ func NewLocalConnector(path string, force bool) (*LocalConnector, error) {
 }
 
 func (this *LocalConnector) GetId() string {
-   return "Local:" + this.path;
+   return connector.CONNECTOR_TYPE_LOCAL + ":" + this.path;
 }
 
 func (this *LocalConnector) PrepareStorage() error {

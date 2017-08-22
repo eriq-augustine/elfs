@@ -10,6 +10,11 @@ import (
    "github.com/eriq-augustine/elfs/dirent"
 )
 
+const (
+   CONNECTOR_TYPE_LOCAL = "local"
+   CONNECTOR_TYPE_S3 = "S3"
+)
+
 type Connector interface {
    // Every connector should be able to construct a unique id for itself
    // that is the same for each backend.

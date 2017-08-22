@@ -79,13 +79,6 @@ func main() {
       panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to get local driver")));
    }
 
-   // Try to init the filesystem from any existing metadata.
-   err = fsDriver.SyncFromDisk();
-   if (err != nil && errors.Cause(err) != nil && !os.IsNotExist(errors.Cause(err))) {
-      fmt.Printf("Error parsing existing metadata: %+v\n", err);
-      return;
-   }
-
    var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin);
    for {
       if (activeUser == nil) {

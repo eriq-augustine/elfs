@@ -1,11 +1,14 @@
 package util;
 
 import (
+   "crypto/aes"
+   "crypto/cipher"
    "crypto/rand"
    "crypto/sha256"
    "fmt"
 
    "github.com/eriq-augustine/golog"
+   "github.com/pkg/errors"
 )
 
 const (
@@ -49,4 +52,48 @@ func GenIV() []byte {
 // Hash a string and get back the hex string.
 func ShaHash(data string) string {
    return fmt.Sprintf("%x", sha256.Sum256([]byte(data)));
+}
+
+// One-off encryption and decryption.
+// This is not meant for huge chunks of data.
+func Encrypt(key []byte, iv []byte, cleartext []byte) ([]byte, error) {
+   blockCipher, err := aes.NewCipher(key)
+   if err != nil {
+      return nil, errors.WithStack(err);
+   }
+
+   gcm, err := cipher.NewGCM(blockCipher);
+   if err != nil {
+      return nil, errors.WithStack(err);
+   }
+
+   var ciphertext []byte = make([]byte, 0, len(cleartext) + gcm.Overhead());
+
+   ciphertext = gcm.Seal(ciphertext, iv, cleartext, nil);
+   if (err != nil) {
+      return nil, errors.WithStack(err);
+   }
+
+   return ciphertext, nil;
+}
+
+func Decrypt(key []byte, iv []byte, ciphertext []byte) ([]byte, error) {
+   blockCipher, err := aes.NewCipher(key)
+   if err != nil {
+      return nil, errors.WithStack(err);
+   }
+
+   gcm, err := cipher.NewGCM(blockCipher);
+   if err != nil {
+      return nil, errors.WithStack(err);
+   }
+
+   var cleartext []byte = make([]byte, 0, len(ciphertext) - gcm.Overhead());
+
+   cleartext, err = gcm.Open(cleartext, iv, ciphertext, nil);
+   if (err != nil) {
+      return nil, errors.WithStack(err);
+   }
+
+   return cleartext, nil;
 }

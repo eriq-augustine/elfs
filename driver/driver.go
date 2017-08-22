@@ -17,6 +17,11 @@ import (
    "github.com/eriq-augustine/elfs/user"
 )
 
+const (
+   DRIVER_TYPE_LOCAL = "local"
+   DRIVER_TYPE_S3 = "S3"
+)
+
 type Driver struct {
    connector connector.Connector
    blockCipher cipher.Block
