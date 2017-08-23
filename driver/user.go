@@ -43,12 +43,8 @@ func (this *Driver) AddUser(contextUser user.Id, name string, weakhash string) (
    return newUser.Id, nil;
 }
 
-func (this *Driver) GetUsers(contextUser user.Id) (map[user.Id]*user.User, error) {
-   if (contextUser != user.ROOT_ID) {
-      return nil, errors.WithStack(NewIllegalOperationError("Only root can list users."));
-   }
-
-   return this.users, nil;
+func (this *Driver) GetUsers() map[user.Id]*user.User {
+   return this.users;
 }
 
 func (this *Driver) RemoveUser(contextUser user.Id, targetId user.Id) error {

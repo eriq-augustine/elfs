@@ -499,10 +499,7 @@ func userlist(command string, fsDriver *driver.Driver, args []string) error {
       return errors.New(fmt.Sprintf("USAGE: %s", command));
    }
 
-   users, err := fsDriver.GetUsers(activeUser.Id);
-   if (err != nil) {
-      return errors.Wrap(err, "Failed to get users.");
-   }
+   users := fsDriver.GetUsers();
 
    for _, user := range(users) {
       fmt.Printf("%s\t%d\n", user.Name, int(user.Id));
@@ -597,10 +594,7 @@ func grouplist(command string, fsDriver *driver.Driver, args []string) error {
       return errors.New(fmt.Sprintf("USAGE: %s", command));
    }
 
-   groups, err := fsDriver.GetGroups();
-   if (err != nil) {
-      return errors.WithStack(err);
-   }
+   groups := fsDriver.GetGroups();
 
    var parts []string = make([]string, 0);
    for _, group := range(groups) {

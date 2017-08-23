@@ -77,8 +77,8 @@ func (this *Driver) DemoteUser(contextUser user.Id, targetUser user.Id, groupId 
    return nil;
 }
 
-func (this *Driver) GetGroups() (map[group.Id]*group.Group, error) {
-   return this.groups, nil;
+func (this *Driver) GetGroups() map[group.Id]*group.Group {
+   return this.groups;
 }
 
 func (this *Driver) JoinGroup(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
