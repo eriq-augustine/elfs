@@ -22,9 +22,9 @@ type Connector interface {
    // Prepare the backend storage for initialization.
    PrepareStorage() error
    // Get a reader that transparently handles all decryption.
-   GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (*cipherio.CipherReader, error)
+   GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (cipherio.ReadSeekCloser, error)
    // Metadata may be stored in a different way than normal files.
-   GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (*cipherio.CipherReader, error)
+   GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (cipherio.ReadSeekCloser, error)
    GetCipherWriter(fileInfo *dirent.Dirent, blockCipher cipher.Block) (*cipherio.CipherWriter, error)
    GetMetadataWriter(metadataId string, blockCipher cipher.Block, iv []byte) (*cipherio.CipherWriter, error)
    RemoveMetadataFile(metadataId string) error

@@ -197,7 +197,12 @@ func (this *MetadataCache) read() error {
    }
    defer file.Close();
 
-   reader, err := cipherio.NewCipherReader(file, this.blockCipher, this.iv);
+   fileStat, err := file.Stat();
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   reader, err := cipherio.NewCipherReader(file, this.blockCipher, this.iv, fileStat.Size());
    if (err != nil) {
       return errors.WithStack(err);
    }

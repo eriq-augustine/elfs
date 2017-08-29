@@ -17,7 +17,7 @@ import (
 // However, the reader WILL be closed.
 // We are using a json decoder that may consume extra bytes at the end, therefore
 // if we left the reader open it may give inconistent reads.
-func ReadFat(fat map[dirent.Id]*dirent.Dirent, reader *cipherio.CipherReader) (int, error) {
+func ReadFat(fat map[dirent.Id]*dirent.Dirent, reader cipherio.ReadSeekCloser) (int, error) {
    version, err := ReadFatWithDecoder(fat, json.NewDecoder(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);

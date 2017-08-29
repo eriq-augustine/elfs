@@ -16,7 +16,7 @@ import (
 // However, the reader WILL be closed.
 // We are using a json decoder that may consume extra bytes at the end, therefore
 // if we left the reader open it may give inconistent reads.
-func ReadUsers(users map[user.Id]*user.User, reader *cipherio.CipherReader) (int, error) {
+func ReadUsers(users map[user.Id]*user.User, reader cipherio.ReadSeekCloser) (int, error) {
    version, err := ReadUsersWithDecoder(users, json.NewDecoder(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);

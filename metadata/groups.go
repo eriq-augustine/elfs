@@ -16,7 +16,7 @@ import (
 // However, the reader WILL be closed.
 // We are using a json decoder that may consume extra bytes at the end, therefore
 // if we left the reader open it may give inconistent reads.
-func ReadGroups(groups map[group.Id]*group.Group, reader *cipherio.CipherReader) (int, error) {
+func ReadGroups(groups map[group.Id]*group.Group, reader cipherio.ReadSeekCloser) (int, error) {
    version, err := ReadGroupsWithDecoder(groups, json.NewDecoder(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);

@@ -75,7 +75,7 @@ func (this *LocalConnector) PrepareStorage() error {
    return os.MkdirAll(this.path, 0700);
 }
 
-func (this *LocalConnector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (*cipherio.CipherReader, error) {
+func (this *LocalConnector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (cipherio.ReadSeekCloser, error) {
    var path string = this.getDiskPath(fileInfo);
 
    file, err := os.Open(path);
@@ -83,10 +83,15 @@ func (this *LocalConnector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher
       return nil, errors.Wrap(err, "Unable to open file on disk at: " + path);
    }
 
-   return cipherio.NewCipherReader(file, blockCipher, fileInfo.IV);
+   fileStat, err := file.Stat();
+   if (err != nil) {
+      return nil, errors.WithStack(err);
+   }
+
+   return cipherio.NewCipherReader(file, blockCipher, fileInfo.IV, fileStat.Size());
 }
 
-func (this *LocalConnector) GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (*cipherio.CipherReader, error) {
+func (this *LocalConnector) GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (cipherio.ReadSeekCloser, error) {
    var path string = this.getMetadataPath(metadataId);
 
    file, err := os.Open(path);
@@ -94,7 +99,12 @@ func (this *LocalConnector) GetMetadataReader(metadataId string, blockCipher cip
       return nil, errors.Wrap(err, "Unable to open file on disk at: " + path);
    }
 
-   return cipherio.NewCipherReader(file, blockCipher, iv);
+   fileStat, err := file.Stat();
+   if (err != nil) {
+      return nil, errors.WithStack(err);
+   }
+
+   return cipherio.NewCipherReader(file, blockCipher, iv, fileStat.Size());
 }
 
 func (this *LocalConnector) GetCipherWriter(fileInfo *dirent.Dirent, blockCipher cipher.Block) (*cipherio.CipherWriter, error) {
