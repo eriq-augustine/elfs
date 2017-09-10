@@ -152,9 +152,7 @@ func (this* LocalConnector) Close() error {
    defer activeConnectionsLock.Unlock();
 
    activeConnections[this.path] = false;
-   this.unlock();
-
-   return nil;
+   return errors.WithStack(this.unlock());
 }
 
 func (this* LocalConnector) lock(force bool) error {

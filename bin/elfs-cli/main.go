@@ -16,6 +16,7 @@ import (
    shellquote "github.com/kballard/go-shellquote"
 
    "github.com/eriq-augustine/elfs/cipherio"
+   "github.com/eriq-augustine/elfs/connector"
    "github.com/eriq-augustine/elfs/dirent"
    "github.com/eriq-augustine/elfs/driver"
    "github.com/eriq-augustine/elfs/group"
@@ -30,6 +31,9 @@ const (
    COMMAND_CREATE = "create"
    COMMAND_LOGIN = "login"
    COMMAND_QUIT = "quit"
+   AWS_CRED_PATH = "config/elfs-aws-credentials"
+   AWS_PROFILE = "elfsapi"
+   AWS_REGION = "us-west-2"
 )
 
 var commands map[string]commandFunction;
@@ -67,16 +71,26 @@ func init() {
 }
 
 func main() {
-   key, iv, path, err := parseArgs();
+   key, iv, connectorType, path, err := parseArgs();
    if (err != nil) {
       flag.Usage();
       fmt.Printf("Error parsing args: %+v\n", err);
       return;
    }
 
-   fsDriver, err := driver.NewLocalDriver(key, iv, path);
-   if (err != nil) {
-      panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to get local driver")));
+   var fsDriver *driver.Driver = nil;
+   if (connectorType == connector.CONNECTOR_TYPE_LOCAL) {
+      fsDriver, err = driver.NewLocalDriver(key, iv, path);
+      if (err != nil) {
+         panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to get local driver")));
+      }
+   } else if (connectorType == connector.CONNECTOR_TYPE_S3) {
+      fsDriver, err = driver.NewS3Driver(key, iv, path, AWS_CRED_PATH, AWS_PROFILE, AWS_REGION);
+      if (err != nil) {
+         panic(fmt.Sprintf("%+v", errors.Wrap(err, "Failed to get S3 driver")));
+      }
+   } else {
+      panic(fmt.Sprintf("Unknown connector type: [%s]", connectorType));
    }
 
    var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin);
@@ -112,36 +126,43 @@ func main() {
    fsDriver.Close();
 }
 
-// Returns: (key, iv, path).
-func parseArgs() ([]byte, []byte, string, error) {
+// Returns: (key, iv, connector type, path).
+func parseArgs() ([]byte, []byte, string, string, error) {
    var hexKey *string = flag.String("key", "", "the encryption key in hex");
    var hexIV *string = flag.String("iv", "", "the IV in hex");
+   var connectorType *string = flag.String("type", "", "the connector type ('S3' or 'local')");
    var path *string = flag.String("path", "", "the path to the filesystem");
    flag.Parse();
 
    if (hexKey == nil || *hexKey == "") {
-      return nil, nil, "", errors.New("Error: Key required.");
+      return nil, nil, "", "", errors.New("Error: Key required.");
    }
 
    if (hexIV == nil || *hexIV == "") {
-      return nil, nil, "", errors.New("Error: IV required.");
+      return nil, nil, "", "", errors.New("Error: IV required.");
+   }
+
+   if (connectorType == nil || *connectorType == "") {
+      // Can't take the address of a constant.
+      var tempType string = connector.CONNECTOR_TYPE_LOCAL;
+      connectorType = &tempType;
    }
 
    if (path == nil || *path == "") {
-      return nil, nil, "", errors.New("Error: Path required.");
+      return nil, nil, "", "", errors.New("Error: Path required.");
    }
 
    key, err := hex.DecodeString(*hexKey);
    if (err != nil) {
-      return nil, nil, "", errors.Wrap(err, "Could not decode hex key.");
+      return nil, nil, "", "", errors.Wrap(err, "Could not decode hex key.");
    }
 
    iv, err := hex.DecodeString(*hexIV);
    if (err != nil) {
-      return nil, nil, "", errors.Wrap(err, "Could not decode hex iv.");
+      return nil, nil, "", "", errors.Wrap(err, "Could not decode hex iv.");
    }
 
-   return key, iv, *path, nil;
+   return key, iv, *connectorType, *path, nil;
 }
 
 func processCommand(fsDriver *driver.Driver, command string) error {

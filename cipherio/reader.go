@@ -51,7 +51,6 @@ type CipherReader struct {
    ciphertextOffset int64
    cleartextOffset int64
 
-   ciphertextSize int64
    cleartextSize int64
 
    cipherBlockSize int64
@@ -84,7 +83,6 @@ func NewCipherReader(reader ReadSeekCloser,
       reader: reader,
       ciphertextOffset: 0,
       cleartextOffset: 0,
-      ciphertextSize: ciphertextSize,
       cleartextSize: cleartextSize,
       cipherBlockSize: cipherBlockSize,
    };
