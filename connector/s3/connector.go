@@ -4,6 +4,7 @@ package s3;
 
 import (
    "crypto/cipher"
+   "strings"
    "sync"
 
    "github.com/aws/aws-sdk-go/aws"
@@ -15,6 +16,12 @@ import (
    "github.com/eriq-augustine/elfs/cipherio"
    "github.com/eriq-augustine/elfs/connector"
    "github.com/eriq-augustine/elfs/dirent"
+)
+
+const (
+   LOCK_KEY = "lock"
+   LOCK_TRUE = "true"
+   LOCK_FALSE = "false"
 )
 
 // Keep track of the active connections so two instances don't connect to the same storage.
@@ -37,8 +44,6 @@ type S3Connector struct {
 func NewS3Connector(bucket string, credentialsPath string, awsProfile string, region string, force bool) (*S3Connector, error) {
    activeConnectionsLock.Lock();
    defer activeConnectionsLock.Unlock();
-
-   // TODO(eriq): Lock files?
 
    _, ok := activeConnections[bucket];
    if (ok) {
@@ -77,8 +82,8 @@ func (this *S3Connector) GetId() string {
    return connector.CONNECTOR_TYPE_S3 + ":" + this.bucket;
 }
 
+// Nothing necessary for S3.
 func (this *S3Connector) PrepareStorage() error {
-   // TODO(eriq)
    return nil;
 }
 
@@ -101,22 +106,41 @@ func (this *S3Connector) getReader(id string, blockCipher cipher.Block, iv []byt
 }
 
 func (this *S3Connector) GetCipherWriter(fileInfo *dirent.Dirent, blockCipher cipher.Block) (*cipherio.CipherWriter, error) {
-   // TODO(eriq)
-   return nil, nil;
+   return this.getWriter(string(fileInfo.Id), blockCipher, fileInfo.IV, false);
 }
 
 func (this *S3Connector) GetMetadataWriter(metadataId string, blockCipher cipher.Block, iv []byte) (*cipherio.CipherWriter, error) {
-   // TODO(eriq)
-   return nil, nil;
+   return this.getWriter(metadataId, blockCipher, iv, true);
+}
+
+func (this *S3Connector) getWriter(id string, blockCipher cipher.Block, iv []byte, isMetadata bool) (*cipherio.CipherWriter, error) {
+   writer, err := NewS3Writer(this.bucket, id, this.s3Client, isMetadata);
+   if (err != nil) {
+      return nil, errors.WithStack(err);
+   }
+
+   return cipherio.NewCipherWriter(writer, blockCipher, iv);
 }
 
 func (this *S3Connector) RemoveFile(file *dirent.Dirent) error {
-   // TODO(eriq)
-   return nil;
+   return errors.WithStack(this.removeFile(string(file.Id)));
 }
 
 func (this *S3Connector) RemoveMetadataFile(metadataId string) error {
-   // TODO(eriq)
+   return errors.WithStack(this.removeFile(metadataId));
+}
+
+func (this *S3Connector) removeFile(id string) error {
+   request := &s3.DeleteObjectInput{
+      Bucket: aws.String(this.bucket),
+      Key: aws.String(id),
+   };
+
+   _, err := this.s3Client.DeleteObject(request);
+   if (err != nil) {
+      return errors.Wrap(err, id);
+   }
+
    return nil;
 }
 
@@ -128,12 +152,74 @@ func (this* S3Connector) Close() error {
    return errors.WithStack(this.unlock());
 }
 
+// We lock a bucket by putting a special tag on it.
 func (this* S3Connector) lock(force bool) error {
-   // TODO(eriq)
+   // Check for an existing lock.
+   getRequest := &s3.GetBucketTaggingInput{
+      Bucket: aws.String(this.bucket),
+   };
+
+   response, err := this.s3Client.GetBucketTagging(getRequest);
+   if (err != nil) {
+      // Ignore the error that comes up from an empty tag set.
+      if (!strings.HasPrefix(err.Error(), "NoSuchTagSet: The TagSet does not exist")) {
+         return errors.WithStack(err);
+      }
+   }
+
+   var isLocked bool = false;
+   for _, tag := range(response.TagSet) {
+      if (tag.Key != nil && *tag.Key == LOCK_KEY &&
+            tag.Value != nil && *tag.Value == LOCK_TRUE) {
+         isLocked = true;
+      }
+   }
+
+   // Lock already exists and we were not told to force it.
+   if (isLocked && !force) {
+      return errors.Errorf("S3 filesystem (at %s) already owned." +
+            " Ensure that no one else is using it or force the connector.",
+            this.bucket);
+   }
+
+   // Lock doesn't exist, or we can force it.
+   putRequest := &s3.PutBucketTaggingInput{
+      Bucket: aws.String(this.bucket),
+      Tagging: &s3.Tagging{
+         TagSet: []*s3.Tag{
+            {
+               Key: aws.String(LOCK_KEY),
+               Value: aws.String(LOCK_TRUE),
+            },
+         },
+      },
+   };
+
+   _, err = this.s3Client.PutBucketTagging(putRequest);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
    return nil;
 }
 
 func (this* S3Connector) unlock() error {
-   // TODO(eriq)
+   request := &s3.PutBucketTaggingInput{
+      Bucket: aws.String(this.bucket),
+      Tagging: &s3.Tagging{
+         TagSet: []*s3.Tag{
+            {
+               Key: aws.String(LOCK_KEY),
+               Value: aws.String(LOCK_FALSE),
+            },
+         },
+      },
+   };
+
+   _, err := this.s3Client.PutBucketTagging(request);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
    return nil;
 }

@@ -12,7 +12,7 @@ import (
 
 const (
    CONNECTOR_TYPE_LOCAL = "local"
-   CONNECTOR_TYPE_S3 = "S3"
+   CONNECTOR_TYPE_S3 = "s3"
 )
 
 type Connector interface {

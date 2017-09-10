@@ -5,8 +5,6 @@ package s3;
 // worry at all about the size of the cleartext.
 // That will all be handled in cipherio.CipherReader.
 
-// TODO(eriq): Right now every read will triger a request, we should fetch ahead and cache.
-
 import (
    "fmt"
    "io"
@@ -43,15 +41,10 @@ func (this *S3Reader) Read(outBuffer []byte) (int, error) {
       return 0, io.EOF;
    }
 
-   // TEST
-   fmt.Printf("Read Request: %d bytes\n", len(outBuffer));
-
    // Figure out the end for this read.
-   var requestEndOffset int64 = util.MinInt64(this.ciphertextSize, this.offset + int64(len(outBuffer)));
+   // Note that http byte ranges are inclusive (hence the -1).
+   var requestEndOffset int64 = util.MinInt64(this.ciphertextSize, this.offset + int64(len(outBuffer))) - 1;
    var byteRange string = fmt.Sprintf("bytes=%d-%d", this.offset, requestEndOffset);
-
-   // TEST
-   fmt.Printf("   Byte Range: [%s]\n", byteRange);
 
    request := &s3.GetObjectInput{
       Bucket: this.bucket,
@@ -68,21 +61,18 @@ func (this *S3Reader) Read(outBuffer []byte) (int, error) {
       return 0, errors.Errorf("Got a nil content length: %s", *this.objectId);
    }
 
-   // TEST
-   fmt.Printf("   Content Length: %d\n", *object.ContentLength);
+   // Sometimes S3 gives us an extra byte.
+   // Cutt off any extra bytes, we will get them the next request.
+   var contentLength int64 = util.MinInt64(int64(len(outBuffer)), *object.ContentLength);
 
    // Resize the output buffer to fit what was actaully sent.
-   outBuffer = outBuffer[0:*object.ContentLength];
+   outBuffer = outBuffer[0:contentLength];
 
-   // TODO(eriq): Verify that we got the right size
    readSize, err := io.ReadFull(object.Body, outBuffer);
    this.offset += int64(readSize);
    if (err != nil && err != io.EOF) {
       return readSize, errors.WithStack(err);
    }
-
-   // TEST
-   fmt.Printf("   Read size: %d\n", readSize);
 
    err = object.Body.Close();
    if (err != nil) {
