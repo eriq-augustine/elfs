@@ -2,7 +2,6 @@ package s3;
 
 import (
    "bytes"
-   "fmt"
 
    "github.com/aws/aws-sdk-go/aws"
    "github.com/aws/aws-sdk-go/service/s3"
