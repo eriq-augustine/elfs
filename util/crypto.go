@@ -5,7 +5,7 @@ import (
    "crypto/cipher"
    "crypto/rand"
    "crypto/sha256"
-   "fmt"
+   "encoding/hex"
 
    "github.com/eriq-augustine/golog"
    "github.com/pkg/errors"
@@ -49,9 +49,16 @@ func GenIV() []byte {
    return GenBytes(IV_LENGTH);
 }
 
-// Hash a string and get back the hex string.
-func ShaHash(data string) string {
-   return fmt.Sprintf("%x", sha256.Sum256([]byte(data)));
+// Get the SHA2-256 string.
+func SHA256Hex(val string) string {
+   data := sha256.Sum256([]byte(val));
+   return hex.EncodeToString(data[:]);
+}
+
+// Generate a password hash the same way that clients are expected to.
+func Weakhash(username string, password string) string {
+   saltedData := username + "." + password + "." + username;
+   return SHA256Hex(saltedData);
 }
 
 // One-off encryption and decryption.

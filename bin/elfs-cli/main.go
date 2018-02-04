@@ -288,7 +288,7 @@ func create(command string, fsDriver *driver.Driver, args []string) error {
       return errors.New(fmt.Sprintf("USAGE: %s <root password>", command));
    }
 
-   return fsDriver.CreateFilesystem(util.ShaHash(args[0]));
+   return fsDriver.CreateFilesystem(util.Weakhash(user.ROOT_NAME, args[0]));
 }
 
 func help(command string, fsDriver *driver.Driver, args []string) error {
@@ -361,7 +361,7 @@ func login(command string, fsDriver *driver.Driver, args []string) error {
       return errors.New(fmt.Sprintf("USAGE: %s <username> <password>", command));
    }
 
-   authUser, err := fsDriver.UserAuth(args[0], util.ShaHash(args[1]));
+   authUser, err := fsDriver.UserAuth(args[0], util.Weakhash(args[0], args[1]));
    if (err != nil) {
       return errors.Wrap(err, "Failed to authenticate user.");
    }
@@ -497,7 +497,7 @@ func useradd(command string, fsDriver *driver.Driver, args []string) error {
       return errors.New(fmt.Sprintf("USAGE: %s <username> <password>", command));
    }
 
-   _, err := fsDriver.AddUser(activeUser.Id, args[0], util.ShaHash(args[1]));
+   _, err := fsDriver.AddUser(activeUser.Id, args[0], util.Weakhash(args[0], args[1]));
    return errors.Wrap(err, "Failed to add user");
 }
 

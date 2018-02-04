@@ -53,7 +53,7 @@ func NewMetadataCache(connector connector.Connector, blockCipher cipher.Block,
    activeCachesLock.Lock();
    defer activeCachesLock.Unlock();
 
-   var connectorId string = util.ShaHash(connector.GetId());
+   var connectorId string = util.SHA256Hex(connector.GetId());
    _, ok := activeCaches[connectorId];
    if (ok) {
       return nil, errors.New("Cannot create two caches on the same connector.");
