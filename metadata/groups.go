@@ -3,7 +3,10 @@ package metadata;
 // Read and write groups from streams.
 
 import (
+   "bufio"
    "encoding/json"
+   "fmt"
+   "io"
 
    "github.com/pkg/errors"
 
@@ -14,10 +17,8 @@ import (
 // Read all groups into memory.
 // This function will not clear the given groups.
 // However, the reader WILL be closed.
-// We are using a json decoder that may consume extra bytes at the end, therefore
-// if we left the reader open it may give inconistent reads.
 func ReadGroups(groups map[group.Id]*group.Group, reader cipherio.ReadSeekCloser) (int, error) {
-   version, err := ReadGroupsWithDecoder(groups, json.NewDecoder(reader));
+   version, err := ReadGroupsWithScanner(groups, bufio.NewScanner(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);
    }
@@ -28,20 +29,30 @@ func ReadGroups(groups map[group.Id]*group.Group, reader cipherio.ReadSeekCloser
 // Same as the other read, but we will read directly from a deocder
 // owned by someone else.
 // This is expecially useful if there are multiple
-// sections of metadata written to the same file
-// (since the JSON decoder may read extra bytes).
-func ReadGroupsWithDecoder(groups map[group.Id]*group.Group, decoder *json.Decoder) (int, error) {
-   size, version, err := decodeMetadata(decoder);
+// sections of metadata written to the same file.
+func ReadGroupsWithScanner(groups map[group.Id]*group.Group, scanner *bufio.Scanner) (int, error) {
+   size, version, err := scanMetadata(scanner);
    if (err != nil) {
-      return 0, errors.Wrap(err, "Could not decode group metadata.");
+      return 0, errors.WithStack(err);
    }
 
    // Read all the groups.
    for i := 0; i < size; i++ {
       var entry group.Group;
-      err = decoder.Decode(&entry);
+
+      if (!scanner.Scan()) {
+         err = scanner.Err();
+
+         if (err == nil) {
+            return 0, errors.Wrapf(io.EOF, "Early end of Groups. Only read %d of %d entries.", i , size);
+         } else {
+            return 0, errors.Wrapf(err, "Bad scan on Groups entry %d.", i);
+         }
+      }
+
+      err = json.Unmarshal(scanner.Bytes(), &entry);
       if (err != nil) {
-         return 0, errors.Wrap(err, "Failed to read group.");
+         return 0, errors.Wrapf(err, "Error unmarshaling the group at index %d (%s).", i, string(scanner.Bytes()));
       }
 
       groups[entry.Id] = &entry;
@@ -51,22 +62,27 @@ func ReadGroupsWithDecoder(groups map[group.Id]*group.Group, decoder *json.Decod
 }
 
 // Write all groups.
-// This function will not close the given reader.
+// This function will not close the given writer.
 func WriteGroups(groups map[group.Id]*group.Group, version int, writer *cipherio.CipherWriter) error {
-   var encoder *json.Encoder = json.NewEncoder(writer);
+   var bufWriter *bufio.Writer = bufio.NewWriter(writer);
 
-   err := encodeMetadata(encoder, len(groups), version);
+   err := writeMetadata(bufWriter, len(groups), version);
    if (err != nil) {
-      return errors.Wrap(err, "Could not encode groups metadata.");
+      return errors.WithStack(err);
    }
 
-   // Write all the dirents.
-   for _, entry := range(groups) {
-      err = encoder.Encode(entry);
+   // Write all the groups.
+   for i, entry := range(groups) {
+      line, err := json.Marshal(entry);
       if (err != nil) {
-         return errors.Wrap(err, "Failed to write group.");
+         return errors.Wrapf(err, "Failed to marshal Group entry %d.", i);
+      }
+
+      _, err = bufWriter.WriteString(fmt.Sprintf("%s\n", string(line)));
+      if (err != nil) {
+         return errors.Wrapf(err, "Failed to write Group entry %d.", i);
       }
    }
 
-   return nil;
+   return errors.WithStack(bufWriter.Flush());
 }

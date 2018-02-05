@@ -143,8 +143,8 @@ func (this *CipherWriter) Close() error {
    this.done = true;
    err := this.writeChunks();
    if (err != nil) {
-      return errors.Wrap(err, "Failed final write");
+      return errors.WithStack(err);
    }
 
-   return this.writer.Close();
+   return errors.WithStack(this.writer.Close());
 }

@@ -3,7 +3,10 @@ package metadata;
 // Read and write FATs from streams.
 
 import (
+   "bufio"
    "encoding/json"
+   "fmt"
+   "io"
 
    "github.com/pkg/errors"
 
@@ -15,10 +18,8 @@ import (
 // of the version read.
 // This function will not clear the given fat.
 // However, the reader WILL be closed.
-// We are using a json decoder that may consume extra bytes at the end, therefore
-// if we left the reader open it may give inconistent reads.
 func ReadFat(fat map[dirent.Id]*dirent.Dirent, reader cipherio.ReadSeekCloser) (int, error) {
-   version, err := ReadFatWithDecoder(fat, json.NewDecoder(reader));
+   version, err := ReadFatWithScanner(fat, bufio.NewScanner(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);
    }
@@ -26,13 +27,12 @@ func ReadFat(fat map[dirent.Id]*dirent.Dirent, reader cipherio.ReadSeekCloser) (
    return version, errors.WithStack(reader.Close());
 }
 
-// Same as the other read, but we will read directly from a deocder
+// Same as the other read, but we will read directly from a scanner
 // owned by someone else.
 // This is expecially useful if there are multiple
-// sections of metadata written to the same file
-// (since the JSON decoder may read extra bytes).
-func ReadFatWithDecoder(fat map[dirent.Id]*dirent.Dirent, decoder *json.Decoder) (int, error) {
-   size, version, err := decodeMetadata(decoder);
+// sections of metadata written to the same file.
+func ReadFatWithScanner(fat map[dirent.Id]*dirent.Dirent, scanner *bufio.Scanner) (int, error) {
+   size, version, err := scanMetadata(scanner);
    if (err != nil) {
       return 0, errors.WithStack(err);
    }
@@ -40,9 +40,20 @@ func ReadFatWithDecoder(fat map[dirent.Id]*dirent.Dirent, decoder *json.Decoder)
    // Read all the dirents.
    for i := 0; i < size; i++ {
       var entry dirent.Dirent;
-      err = decoder.Decode(&entry);
+
+      if (!scanner.Scan()) {
+         err = scanner.Err();
+
+         if (err == nil) {
+            return 0, errors.Wrapf(io.EOF, "Early end of FAT. Only read %d of %d entries.", i , size);
+         } else {
+            return 0, errors.Wrapf(err, "Bad scan on FAT entry %d.", i);
+         }
+      }
+
+      err = json.Unmarshal(scanner.Bytes(), &entry);
       if (err != nil) {
-         return 0, errors.WithStack(err);
+         return 0, errors.Wrapf(err, "Error unmarshaling the dirent at index %d (%s).", i, string(scanner.Bytes()));
       }
 
       fat[entry.Id] = &entry;
@@ -52,22 +63,27 @@ func ReadFatWithDecoder(fat map[dirent.Id]*dirent.Dirent, decoder *json.Decoder)
 }
 
 // Write a full fat.
-// This function will not close the given reader.
+// This function will not close the given writer.
 func WriteFat(fat map[dirent.Id]*dirent.Dirent, version int, writer *cipherio.CipherWriter) error {
-   var encoder *json.Encoder = json.NewEncoder(writer);
+   var bufWriter *bufio.Writer = bufio.NewWriter(writer);
 
-   err := encodeMetadata(encoder, len(fat), version);
+   err := writeMetadata(bufWriter, len(fat), version);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
    // Write all the dirents.
-   for _, entry := range(fat) {
-      err = encoder.Encode(entry);
+   for i, entry := range(fat) {
+      line, err := json.Marshal(entry);
       if (err != nil) {
-         return errors.WithStack(err);
+         return errors.Wrapf(err, "Failed to marshal FAT entry %d.", i);
+      }
+
+      _, err = bufWriter.WriteString(fmt.Sprintf("%s\n", string(line)));
+      if (err != nil) {
+         return errors.Wrapf(err, "Failed to write FAT entry %d.", i);
       }
    }
 
-   return nil;
+   return errors.WithStack(bufWriter.Flush());
 }

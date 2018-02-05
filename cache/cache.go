@@ -8,8 +8,8 @@ package cache;
 // All the cached metadata wil be written to the same file: fat, users, and groups.
 
 import (
+   "bufio"
    "crypto/cipher"
-   "encoding/json"
    "os"
    "path/filepath"
    "sync"
@@ -207,24 +207,24 @@ func (this *MetadataCache) read() error {
       return errors.WithStack(err);
    }
 
-   var decoder *json.Decoder = json.NewDecoder(reader);
+   var scanner *bufio.Scanner = bufio.NewScanner(reader);
 
    // Clear the structures before reading.
    this.fat = make(map[dirent.Id]*dirent.Dirent);
    this.users = make(map[user.Id]*user.User);
    this.groups = make(map[group.Id]*group.Group);
 
-   _, err = metadata.ReadFatWithDecoder(this.fat, decoder);
+   _, err = metadata.ReadFatWithScanner(this.fat, scanner);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   _, err = metadata.ReadUsersWithDecoder(this.users, decoder);
+   _, err = metadata.ReadUsersWithScanner(this.users, scanner);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   _, err = metadata.ReadGroupsWithDecoder(this.groups, decoder);
+   _, err = metadata.ReadGroupsWithScanner(this.groups, scanner);
    if (err != nil) {
       return errors.WithStack(err);
    }

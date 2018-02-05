@@ -3,6 +3,8 @@ package dirent;
 // All the key types.
 
 import (
+   "strings"
+
    "github.com/eriq-augustine/elfs/group"
    "github.com/eriq-augustine/elfs/user"
    "github.com/eriq-augustine/elfs/util"
@@ -45,7 +47,7 @@ func NewDir(id Id, owner user.Id, name string,
       IsFile: false,
       IV: nil,
       Owner: owner,
-      Name: name,
+      Name: cleanName(name),
       CreateTimestamp: timestamp,
       ModTimestamp: timestamp,
       AccessTimestamp: timestamp,
@@ -64,7 +66,7 @@ func NewFile(id Id, owner user.Id, name string,
       IsFile: true,
       IV: util.GenIV(),
       Owner: owner,
-      Name: name,
+      Name: cleanName(name),
       CreateTimestamp: timestamp,
       ModTimestamp: timestamp,
       AccessTimestamp: timestamp,
@@ -78,4 +80,12 @@ func NewFile(id Id, owner user.Id, name string,
 
 func NewId() Id {
    return Id(util.RandomString(ID_LENGTH));
+}
+
+// The only current restrictions on names is that they do not contain a newline.
+func cleanName(name string) string {
+   if (strings.Contains(name, "\n")) {
+      return strings.Replace(name, "\n", " ", -1);
+   }
+   return name;
 }
