@@ -64,9 +64,7 @@ func ReadGroupsWithScanner(groups map[group.Id]*group.Group, scanner *bufio.Scan
 // Write all groups.
 // This function will not close the given writer.
 func WriteGroups(groups map[group.Id]*group.Group, version int, writer *cipherio.CipherWriter) error {
-   var bufWriter *bufio.Writer = bufio.NewWriter(writer);
-
-   err := writeMetadata(bufWriter, len(groups), version);
+   err := writeMetadata(writer, len(groups), version);
    if (err != nil) {
       return errors.WithStack(err);
    }
@@ -78,11 +76,11 @@ func WriteGroups(groups map[group.Id]*group.Group, version int, writer *cipherio
          return errors.Wrapf(err, "Failed to marshal Group entry %d.", i);
       }
 
-      _, err = bufWriter.WriteString(fmt.Sprintf("%s\n", string(line)));
+      _, err = writer.Write([]byte(fmt.Sprintf("%s\n", string(line))));
       if (err != nil) {
          return errors.Wrapf(err, "Failed to write Group entry %d.", i);
       }
    }
 
-   return errors.WithStack(bufWriter.Flush());
+   return nil;
 }

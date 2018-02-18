@@ -65,9 +65,7 @@ func ReadFatWithScanner(fat map[dirent.Id]*dirent.Dirent, scanner *bufio.Scanner
 // Write a full fat.
 // This function will not close the given writer.
 func WriteFat(fat map[dirent.Id]*dirent.Dirent, version int, writer *cipherio.CipherWriter) error {
-   var bufWriter *bufio.Writer = bufio.NewWriter(writer);
-
-   err := writeMetadata(bufWriter, len(fat), version);
+   err := writeMetadata(writer, len(fat), version);
    if (err != nil) {
       return errors.WithStack(err);
    }
@@ -79,11 +77,11 @@ func WriteFat(fat map[dirent.Id]*dirent.Dirent, version int, writer *cipherio.Ci
          return errors.Wrapf(err, "Failed to marshal FAT entry %d.", i);
       }
 
-      _, err = bufWriter.WriteString(fmt.Sprintf("%s\n", string(line)));
+      _, err = writer.Write([]byte(fmt.Sprintf("%s\n", string(line))));
       if (err != nil) {
          return errors.Wrapf(err, "Failed to write FAT entry %d.", i);
       }
    }
 
-   return errors.WithStack(bufWriter.Flush());
+   return nil;
 }

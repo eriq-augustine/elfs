@@ -59,9 +59,7 @@ func ReadUsersWithScanner(users map[user.Id]*user.User, scanner *bufio.Scanner) 
 // Write all users.
 // This function will not close the given writer.
 func WriteUsers(users map[user.Id]*user.User, version int, writer *cipherio.CipherWriter) error {
-   var bufWriter *bufio.Writer = bufio.NewWriter(writer);
-
-   err := writeMetadata(bufWriter, len(users), version);
+   err := writeMetadata(writer, len(users), version);
    if (err != nil) {
       return errors.WithStack(err);
    }
@@ -73,11 +71,11 @@ func WriteUsers(users map[user.Id]*user.User, version int, writer *cipherio.Ciph
          return errors.Wrapf(err, "Failed to marshal User entry %d.", i);
       }
 
-      _, err = bufWriter.WriteString(fmt.Sprintf("%s\n", string(line)));
+      _, err = writer.Write([]byte(fmt.Sprintf("%s\n", string(line))));
       if (err != nil) {
          return errors.Wrapf(err, "Failed to write User entry %d.", i);
       }
    }
 
-   return errors.WithStack(bufWriter.Flush());
+   return nil;
 }

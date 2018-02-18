@@ -4,10 +4,13 @@ package s3;
 
 import (
    "crypto/cipher"
+   "io/ioutil"
+   "os"
    "strings"
    "sync"
 
    "github.com/aws/aws-sdk-go/aws"
+   "github.com/aws/aws-sdk-go/aws/awserr"
    "github.com/aws/aws-sdk-go/aws/credentials"
    "github.com/aws/aws-sdk-go/aws/session"
    "github.com/aws/aws-sdk-go/service/s3"
@@ -19,9 +22,8 @@ import (
 )
 
 const (
-   LOCK_KEY = "lock"
-   LOCK_TRUE = "true"
-   LOCK_FALSE = "false"
+   LOCK_FILENAME = "remote_lock"
+   UNKNOWN_HOSTNAME = "unknown"
 )
 
 // Keep track of the active connections so two instances don't connect to the same storage.
@@ -41,7 +43,7 @@ type S3Connector struct {
 // There should only ever be one connection to a filesystem at a time.
 // If an old connection has not been properly closed, then the force parameter
 // may be used to cleanup the old connection.
-func NewS3Connector(bucket string, credentialsPath string, awsProfile string, region string, force bool) (*S3Connector, error) {
+func NewS3Connector(bucket string, credentialsPath string, awsProfile string, region string, endpoint string, force bool) (*S3Connector, error) {
    activeConnectionsLock.Lock();
    defer activeConnectionsLock.Unlock();
 
@@ -60,6 +62,7 @@ func NewS3Connector(bucket string, credentialsPath string, awsProfile string, re
    awsSession, err := session.NewSession(&aws.Config{
       Credentials: credentials.NewSharedCredentials(credentialsPath, awsProfile),
       Region: aws.String(region),
+      Endpoint: &endpoint,
    });
    if (err != nil) {
       return nil, errors.Wrap(err, bucket);
@@ -152,50 +155,43 @@ func (this* S3Connector) Close() error {
    return errors.WithStack(this.unlock());
 }
 
-// We lock a bucket by putting a special tag on it.
-func (this* S3Connector) lock(force bool) error {
-   // Check for an existing lock.
-   getRequest := &s3.GetBucketTaggingInput{
+func (this *S3Connector) checkLock() (string, error) {
+   request := &s3.GetObjectInput{
       Bucket: aws.String(this.bucket),
+      Key: aws.String(LOCK_FILENAME),
    };
 
-   response, err := this.s3Client.GetBucketTagging(getRequest);
+   data, err := this.s3Client.GetObject(request);
    if (err != nil) {
-      // Ignore the error that comes up from an empty tag set.
-      if (!strings.HasPrefix(err.Error(), "NoSuchTagSet: The TagSet does not exist")) {
-         return errors.WithStack(err);
+      awsError, ok := err.(awserr.Error);
+      if (ok && awsError.Code() == s3.ErrCodeNoSuchKey) {
+         return "", nil;
       }
+
+      return "", errors.WithStack(err);
    }
 
-   var isLocked bool = false;
-   for _, tag := range(response.TagSet) {
-      if (tag.Key != nil && *tag.Key == LOCK_KEY &&
-            tag.Value != nil && *tag.Value == LOCK_TRUE) {
-         isLocked = true;
-      }
+   hostname, err := ioutil.ReadAll(data.Body);
+   if (err != nil) {
+      return "", errors.WithStack(err);
    }
 
-   // Lock already exists and we were not told to force it.
-   if (isLocked && !force) {
-      return errors.Errorf("S3 filesystem (at %s) already owned." +
-            " Ensure that no one else is using it or force the connector.",
-            this.bucket);
+   return string(hostname), errors.WithStack(data.Body.Close());
+}
+
+func (this *S3Connector) writeLock() error {
+   hostname, err := os.Hostname();
+   if (err != nil) {
+      hostname = UNKNOWN_HOSTNAME;
    }
 
-   // Lock doesn't exist, or we can force it.
-   putRequest := &s3.PutBucketTaggingInput{
+   request := &s3.PutObjectInput{
       Bucket: aws.String(this.bucket),
-      Tagging: &s3.Tagging{
-         TagSet: []*s3.Tag{
-            {
-               Key: aws.String(LOCK_KEY),
-               Value: aws.String(LOCK_TRUE),
-            },
-         },
-      },
+      Key: aws.String(LOCK_FILENAME),
+      Body: strings.NewReader(hostname),
    };
 
-   _, err = this.s3Client.PutBucketTagging(putRequest);
+   _, err = this.s3Client.PutObject(request);
    if (err != nil) {
       return errors.WithStack(err);
    }
@@ -203,20 +199,30 @@ func (this* S3Connector) lock(force bool) error {
    return nil;
 }
 
+func (this* S3Connector) lock(force bool) error {
+   hostname, err := this.checkLock();
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   // Lock already exists and we were not told to force it.
+   if (hostname != "" && !force) {
+      return errors.Errorf("S3 filesystem (at %s) already owned by [%s]." +
+            " Ensure that the server is dead and remove the lock or force the connector.",
+            this.bucket, hostname);
+   }
+
+   // Lock doesn't exist, or we can force it.
+   return errors.WithStack(this.writeLock());
+}
+
 func (this* S3Connector) unlock() error {
-   request := &s3.PutBucketTaggingInput{
+   request := &s3.DeleteObjectInput{
       Bucket: aws.String(this.bucket),
-      Tagging: &s3.Tagging{
-         TagSet: []*s3.Tag{
-            {
-               Key: aws.String(LOCK_KEY),
-               Value: aws.String(LOCK_FALSE),
-            },
-         },
-      },
+      Key: aws.String(LOCK_FILENAME),
    };
 
-   _, err := this.s3Client.PutBucketTagging(request);
+   _, err := this.s3Client.DeleteObject(request);
    if (err != nil) {
       return errors.WithStack(err);
    }

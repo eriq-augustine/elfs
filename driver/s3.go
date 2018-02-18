@@ -8,8 +8,8 @@ import (
    "github.com/eriq-augustine/elfs/connector/s3"
 )
 
-func NewS3Driver(key []byte, iv []byte, bucket string, credentialsPath string, awsProfile string, region string) (*Driver, error) {
-   connector, err := s3.NewS3Connector(bucket, credentialsPath, awsProfile, region, false);
+func NewS3Driver(key []byte, iv []byte, bucket string, credentialsPath string, awsProfile string, region string, endpoint string) (*Driver, error) {
+   connector, err := s3.NewS3Connector(bucket, credentialsPath, awsProfile, region, endpoint, false);
    if (err != nil) {
       return nil, errors.WithStack(err);
    }

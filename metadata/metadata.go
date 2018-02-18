@@ -5,6 +5,7 @@ package metadata;
 import (
    "bufio"
    "fmt"
+   "io"
 
    "github.com/pkg/errors"
 
@@ -51,21 +52,21 @@ func scanMetadata(scanner *bufio.Scanner) (int, int, error) {
 }
 
 // Write the metadata elements of the metadata file.
-func writeMetadata(writer *bufio.Writer, size int, version int) (error) {
-   _, err := writer.WriteString(fmt.Sprintf("%d\n", FORMAT_VERSION));
+func writeMetadata(writer io.Writer, size int, version int) (error) {
+   _, err := writer.Write([]byte(fmt.Sprintf("%d\n", FORMAT_VERSION)));
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   _, err = writer.WriteString(fmt.Sprintf("%d\n", size));
+   _, err = writer.Write([]byte(fmt.Sprintf("%d\n", size)));
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   _, err = writer.WriteString(fmt.Sprintf("%d\n", version));
+   _, err = writer.Write([]byte(fmt.Sprintf("%d\n", version)));
    if (err != nil) {
       return errors.WithStack(err);
    }
 
-   return errors.WithStack(writer.Flush());
+   return nil;
 }
