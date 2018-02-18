@@ -22,7 +22,7 @@ type ReadSeekCloser interface {
 
 // A ReadSeekCloser that will read an encrypted file, decrypt them, and return the cleartext
 // all in chunks of size IO_BLOCK_SIZE.
-// Note that the cleartext will be in checks of IO_BLOCK_SIZE,
+// Note that the cleartext will be in chunks of IO_BLOCK_SIZE,
 // but the cipertext read will be slightly larger.
 type CipherReader struct {
    gcm cipher.AEAD
@@ -43,8 +43,8 @@ type CipherReader struct {
 
    // These are NOT offsets into the respective buffers,
    // there are absolute offsets into the cipher/clear text files.
-   // Note one cannot always be translated into the other using the bocksize and cipher overhead.
-   // This is because the ciphertextOffset is out offset into the file on disk.
+   // Note that one cannot always be translated into the other using the bocksize and cipher overhead.
+   // This is because the ciphertextOffset is the offset into the file on disk.
    // The cleartextOffset, however, is the offset into the bytes we have passed the user.
    // So the cipher offset may be further along (after blocksize translation) because we may have 
    // data in the cleartext buffer.
@@ -68,6 +68,7 @@ func NewCipherReader(reader ReadSeekCloser,
    var cleartextBuffer []byte = make([]byte, 0, IO_BLOCK_SIZE);
 
    var cipherBlockSize int64 = int64(IO_BLOCK_SIZE + gcm.Overhead());
+   // Note that this is exact since we can't write partial blocks.
    var numBlocks int64 = ciphertextSize / cipherBlockSize;
    var cleartextSize int64 = int64(numBlocks * IO_BLOCK_SIZE) + (ciphertextSize - (numBlocks * cipherBlockSize) - int64(gcm.Overhead()));
 
@@ -97,7 +98,7 @@ func (this *CipherReader) Read(outBuffer []byte) (int, error) {
       return 0, io.EOF;
    }
 
-   // Keep track of the offset when we started this read so we can calculate final size correctly.
+   // Keep track of the offset when we started this read so we can calculate final read size correctly.
    var originalCleartextOffset = this.cleartextOffset;
 
    // We will keep reading until there is no more to read or the buffer is full.
@@ -128,7 +129,7 @@ func (this *CipherReader) Read(outBuffer []byte) (int, error) {
       // If we have reached an EOF then we have read everything possible,
       // and either fell short of the requested amount or got that amount exactly.
       // Note that we are checking the cleartext offset instead of the ciphertext offset because
-      // the cleartext ioffset indicates that there is nothing left in the cleartext buffer.
+      // the cleartext offset indicates that there is nothing left in the cleartext buffer.
       if (this.cleartextOffset >= this.cleartextSize) {
          return int(this.cleartextOffset - originalCleartextOffset), io.EOF;
       }

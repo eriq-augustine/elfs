@@ -107,10 +107,7 @@ func (this *CipherWriter) writeChunks() error {
    // Keep writing as many chunks as we have data for.
    // If we are done, then write the final chunk.
    for (len(this.cleartextBuffer) >= IO_BLOCK_SIZE || (this.done && len(this.cleartextBuffer) > 0)) {
-      var writeSize int = IO_BLOCK_SIZE;
-      if (len(this.cleartextBuffer) < IO_BLOCK_SIZE) {
-         writeSize = len(this.cleartextBuffer);
-      }
+      var writeSize = util.MinInt(IO_BLOCK_SIZE, len(this.cleartextBuffer));
       var data []byte = this.cleartextBuffer[0:writeSize];
 
       // Resise the clear text buffer so we "consume" what we are currently writing.
@@ -131,8 +128,21 @@ func (this *CipherWriter) writeChunks() error {
       util.IncrementBytes(this.iv);
    }
 
+   // No need to copy.
+   if (len(this.cleartextBuffer) == 0) {
+      this.cleartextBuffer = this.originalCleartextBuffer
+      this.originalCleartextBuffer = this.originalCleartextBuffer[:0];
+      return nil;
+   }
+
+   // Because of copy's semantics (it looks at the length rather than capacity of the dest slice),
+   // we need to reslice the original cleartext buffer.
+   // But as long as we do not change the starting point, we should be fine.
+   this.originalCleartextBuffer = this.originalCleartextBuffer[0:len(this.cleartextBuffer)];
+
    // Move any remaining data to the front of the original buffer.
    copy(this.originalCleartextBuffer, this.cleartextBuffer);
+
    this.cleartextBuffer = this.originalCleartextBuffer
    this.originalCleartextBuffer = this.originalCleartextBuffer[:0];
 
