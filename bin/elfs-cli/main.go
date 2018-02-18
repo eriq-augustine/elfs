@@ -164,7 +164,7 @@ func processCommand(fsDriver *driver.Driver, activeUser **user.User, input strin
    }
 
    if (*activeUser == nil && commandInfo.RequireLogin) {
-      fmt.Printf("Command [%s] requires login.\n");
+      fmt.Printf("Command [%s] requires login.\n", command);
       return nil;
    }
 
