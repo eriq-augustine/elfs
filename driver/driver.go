@@ -36,10 +36,6 @@ type Driver struct {
    groupsIV []byte
    fatIV []byte
    cacheIV []byte
-   // IVs for shadow tables.
-   shadowUsersIV []byte
-   shadowGroupsIV []byte
-   shadowFatIV []byte
 }
 
 // Get a new, uninitialized driver.

@@ -3,9 +3,6 @@ package driver;
 // Helpers that deal only with metadata (fat, users, and groups).
 
 import (
-   "fmt"
-
-   "github.com/eriq-augustine/golog"
    "github.com/pkg/errors"
 
    "github.com/eriq-augustine/elfs/dirent"
@@ -19,20 +16,13 @@ const (
    FAT_ID = "fat"
    USERS_ID = "users"
    GROUPS_ID = "groups"
+   SHADOW_SUFFIX = "shadow"
 
    // Offset the initial IV for each table.
    IV_OFFSET_USERS = 100
    IV_OFFSET_GROUPS = 200
    IV_OFFSET_CACHE = 300
    IV_OFFSET_FAT = 500
-
-   // Offsets for base IVs for the shadow tables.
-   IV_OFFSET_SHADOW_USERS = 1100
-   IV_OFFSET_SHADOW_GROUPS = 1200
-   IV_OFFSET_SHADOW_FAT = 1500
-
-   // The number of shadow tables to keep around.
-   SHADOW_COUNT = 10
 )
 
 // Make a copy of the IV and increment it enough.
@@ -48,15 +38,6 @@ func (this *Driver) initIVs() {
 
    this.cacheIV = append([]byte(nil), this.iv...);
    util.IncrementBytesByCount(this.cacheIV, IV_OFFSET_CACHE);
-
-   this.shadowFatIV = append([]byte(nil), this.iv...);
-   util.IncrementBytesByCount(this.shadowFatIV, IV_OFFSET_SHADOW_FAT);
-
-   this.shadowUsersIV = append([]byte(nil), this.iv...);
-   util.IncrementBytesByCount(this.shadowUsersIV, IV_OFFSET_SHADOW_USERS);
-
-   this.shadowGroupsIV = append([]byte(nil), this.iv...);
-   util.IncrementBytesByCount(this.shadowGroupsIV, IV_OFFSET_SHADOW_GROUPS);
 }
 
 // Read the full fat into memory.
@@ -121,15 +102,15 @@ func (this *Driver) readUsers() error {
 }
 
 // Write the full fat to disk.
-func (this *Driver) writeFat() error {
+func (this *Driver) writeFat(shadow bool) error {
    this.fatVersion++;
 
-   err := this.writeShadowFat();
-   if (err != nil) {
-      return errors.WithStack(err);
+   var id string = FAT_ID;
+   if (shadow) {
+      id = id + "_" + SHADOW_SUFFIX;
    }
 
-   err = this.writeFatCore(FAT_ID, this.fatIV);
+   err := this.writeFatCore(id, this.fatIV);
    if (err != nil) {
       return errors.WithStack(err);
    }
@@ -138,15 +119,15 @@ func (this *Driver) writeFat() error {
 }
 
 // Write the full group listing to disk.
-func (this *Driver) writeGroups() error {
+func (this *Driver) writeGroups(shadow bool) error {
    this.groupsVersion++;
 
-   err := this.writeShadowGroups();
-   if (err != nil) {
-      return errors.WithStack(err);
+   var id string = GROUPS_ID;
+   if (shadow) {
+      id = id + "_" + SHADOW_SUFFIX;
    }
 
-   err = this.writeGroupsCore(GROUPS_ID, this.groupsIV);
+   err := this.writeGroupsCore(id, this.groupsIV);
    if (err != nil) {
       return errors.WithStack(err);
    }
@@ -155,23 +136,21 @@ func (this *Driver) writeGroups() error {
 }
 
 // Write the full user listing to disk.
-func (this *Driver) writeUsers() error {
+func (this *Driver) writeUsers(shadow bool) error {
    this.usersVersion++;
 
-   err := this.writeShadowUsers();
-   if (err != nil) {
-      return errors.WithStack(err);
+   var id string = USERS_ID;
+   if (shadow) {
+      id = id + "_" + SHADOW_SUFFIX;
    }
 
-   err = this.writeUsersCore(USERS_ID, this.usersIV);
+   err := this.writeUsersCore(id, this.usersIV);
    if (err != nil) {
       return errors.WithStack(err);
    }
 
    return nil;
 }
-
-// More internal write functions that handle shadow tables.
 
 // The actual FAT write.
 func (this *Driver) writeFatCore(metadataId string, iv []byte) error {
@@ -216,58 +195,4 @@ func (this *Driver) writeUsersCore(metadataId string, iv []byte) error {
    }
 
    return errors.WithStack(writer.Close());
-}
-
-// Shadow writes.
-
-// Write the shadow fat and remove any shadow that is too old.
-func (this *Driver) writeShadowFat() error {
-   var iv []byte = append([]byte(nil), this.shadowFatIV...);
-   util.IncrementBytesByCount(iv, this.fatVersion);
-
-   // Ignore failed remove of old shadow.
-   if (this.fatVersion > SHADOW_COUNT) {
-      err := this.connector.RemoveMetadataFile(getShadowId(FAT_ID, this.fatVersion - SHADOW_COUNT));
-      if (err != nil) {
-         golog.WarnE("Failed to remove shadow fat.", err);
-      }
-   }
-
-   return errors.WithStack(this.writeFatCore(getShadowId(FAT_ID, this.fatVersion), iv));
-}
-
-// Write the shadow groups and remove any shadow that is too old.
-func (this *Driver) writeShadowGroups() error {
-   var iv []byte = append([]byte(nil), this.shadowGroupsIV...);
-   util.IncrementBytesByCount(iv, this.groupsVersion);
-
-   // Ignore failed remove of old shadow.
-   if (this.groupsVersion > SHADOW_COUNT) {
-      err := this.connector.RemoveMetadataFile(getShadowId(GROUPS_ID, this.groupsVersion - SHADOW_COUNT));
-      if (err != nil) {
-         golog.WarnE("Failed to remove shadow groups.", err);
-      }
-   }
-
-   return errors.WithStack(this.writeGroupsCore(getShadowId(GROUPS_ID, this.groupsVersion), iv));
-}
-
-// Write the shadow users and remove any shadow that is too old.
-func (this *Driver) writeShadowUsers() error {
-   var iv []byte = append([]byte(nil), this.shadowUsersIV...);
-   util.IncrementBytesByCount(iv, this.usersVersion);
-
-   // Ignore failed remove of old shadow.
-   if (this.usersVersion > SHADOW_COUNT) {
-      err := this.connector.RemoveMetadataFile(getShadowId(USERS_ID, this.usersVersion - SHADOW_COUNT));
-      if (err != nil) {
-         golog.WarnE("Failed to remove shadow users.", err);
-      }
-   }
-
-   return errors.WithStack(this.writeUsersCore(getShadowId(USERS_ID, this.usersVersion), iv));
-}
-
-func getShadowId(metadataId string, version int) string {
-   return fmt.Sprintf("%s_shadow_%06d", metadataId, version);
 }

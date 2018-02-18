@@ -50,19 +50,15 @@ func (this *Driver) CreateFilesystem(rootPasshash string) error {
 // Read all the metadata from disk into memory.
 // This should only be done once when the driver initializes.
 func (this *Driver) SyncFromDisk() error {
-   err := this.readFat();
+   err := this.readMetadata();
    if (err != nil) {
-      return errors.Wrap(err, "Could not read FAT");
+      return errors.WithStack(err);
    }
 
-   err = this.readUsers();
+   // If the metadata has been successfully read, write it back out to a shadow.
+   err = this.writeMetadata(true);
    if (err != nil) {
-      return errors.Wrap(err, "Could not read users");
-   }
-
-   err = this.readGroups();
-   if (err != nil) {
-      return errors.Wrap(err, "Could not read groups");
+      return errors.WithStack(err);
    }
 
    // Also check the cache for incomplete transactions.
@@ -83,23 +79,51 @@ func (this *Driver) SyncToDisk(force bool) error {
       return nil;
    }
 
-   err := this.writeFat();
+   err := this.writeMetadata(false);
    if (err != nil) {
-      return errors.Wrap(err, "Could not write FAT");
-   }
-
-   err = this.writeUsers();
-   if (err != nil) {
-      return errors.Wrap(err, "Could not write users");
-   }
-
-   err = this.writeGroups();
-   if (err != nil) {
-      return errors.Wrap(err, "Could not write groups");
+      return errors.WithStack(err);
    }
 
    // All changes are on disk, the cache is safe to clear.
    this.cache.Clear();
+
+   return nil;
+}
+
+func (this *Driver) readMetadata() error {
+   err := this.readFat();
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   err = this.readUsers();
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   err = this.readGroups();
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   return nil;
+}
+
+func (this *Driver) writeMetadata(shadow bool) error {
+   err := this.writeFat(shadow);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   err = this.writeUsers(shadow);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
+
+   err = this.writeGroups(shadow);
+   if (err != nil) {
+      return errors.WithStack(err);
+   }
 
    return nil;
 }
