@@ -5,6 +5,7 @@ package driver;
 import (
    "fmt"
 
+   "github.com/eriq-augustine/golog"
    "github.com/pkg/errors"
 
    "github.com/eriq-augustine/elfs/dirent"
@@ -82,6 +83,30 @@ func (this *Driver) PutGroupAccess(contextUser user.Id, dirent dirent.Id, group 
 
    direntInfo.GroupPermissions[group] = permissions;
    this.cache.CacheDirentPut(direntInfo);
+
+   return nil;
+}
+
+// TODO(eriq): We should probably collect all the errors.
+func (this *Driver) PutRecursiveGroupAccess(contextUser user.Id, dirent dirent.Id, group group.Id, permissions group.Permission) error {
+   direntInfo, ok := this.fat[dirent];
+   if (!ok) {
+      return errors.WithStack(NewIllegalOperationError("Cannot put group access on a non-existant dirent."));
+   }
+
+   err := this.PutGroupAccess(contextUser, dirent, group, permissions);
+   if (err != nil) {
+      return errors.Wrap(err, string(dirent));
+   }
+
+   if (!direntInfo.IsFile) {
+      for _, child := range(this.dirs[dirent]) {
+         err = this.PutRecursiveGroupAccess(contextUser, child.Id, group, permissions);
+         if (err != nil) {
+            golog.WarnE("Failed permission change on recursive dirent.", err);
+         }
+      }
+   }
 
    return nil;
 }

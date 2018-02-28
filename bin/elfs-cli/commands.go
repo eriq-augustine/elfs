@@ -261,6 +261,7 @@ func init() {
       Name: "permadd",
       Function: permissionAdd,
       Args: []commandArg{
+         commandArg{"-r", true},
          commandArg{"dirent id", false},
          commandArg{"group id", false},
          commandArg{"2|4|6", false},
@@ -423,12 +424,9 @@ func ls(fsDriver *driver.Driver, activeUser *user.User, args []string) (interfac
       return nil, errors.Wrap(err, "Failed to list directory: " + string(id));
    }
 
-   var parts []string = make([]string, 0);
-   var groups []string = make([]string, 0);
-
    for _, entry := range(entries) {
-      parts = parts[:0];
-      groups = parts[:0];
+      var parts []string = make([]string, 0, 7);
+      var groups []string = make([]string, 0, 7);
 
       var direntType string = "D";
       if (entry.IsFile) {
@@ -454,7 +452,7 @@ func ls(fsDriver *driver.Driver, activeUser *user.User, args []string) (interfac
             access += "-";
          }
 
-         groups = append(groups, fmt.Sprintf("%s: %s", groupId, access));
+         groups = append(groups, fmt.Sprintf("%d: %s", int(groupId), access));
       }
       parts = append(parts, fmt.Sprintf("[%s]", strings.Join(groups, ", ")));
 
@@ -657,6 +655,16 @@ func chown(fsDriver *driver.Driver, activeUser *user.User, args []string) (inter
 }
 
 func permissionAdd(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+   if (len(args) == 4 && args[0] != "-r") {
+      return nil, errors.New(fmt.Sprintf("Unexpected arg (%s), expecting -r", args[0]));
+   }
+
+   var recursive bool = false;
+   if (len(args) == 4) {
+      recursive = true;
+      args = args[1:];
+   }
+
    var direntId dirent.Id = dirent.Id(args[0]);
 
    groupId, err := strconv.Atoi(args[1]);
@@ -676,7 +684,13 @@ func permissionAdd(fsDriver *driver.Driver, activeUser *user.User, args []string
    var read bool = (permission % 4 == 0);
    var write bool = (permission % 2 == 0);
 
-   return nil, errors.WithStack(fsDriver.PutGroupAccess(activeUser.Id, direntId, group.Id(groupId), group.NewPermission(read, write)));
+   if (recursive) {
+      err = fsDriver.PutRecursiveGroupAccess(activeUser.Id, direntId, group.Id(groupId), group.NewPermission(read, write));
+   } else {
+      err = fsDriver.PutGroupAccess(activeUser.Id, direntId, group.Id(groupId), group.NewPermission(read, write));
+   }
+
+   return nil, errors.WithStack(err);
 }
 
 func permissionDelete(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
