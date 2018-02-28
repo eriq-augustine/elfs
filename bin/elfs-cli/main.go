@@ -98,7 +98,7 @@ func main() {
 func parseArgs() (*args, error) {
    var awsCredPath *string = pflag.StringP("aws-creds", "c", DEFAULT_AWS_CRED_PATH, "Path to AWS credentials");
    var awsEndpoint *string = pflag.StringP("aws-endpoint", "e", DEFAULT_AWS_ENDPOINT, "AWS endpoint to use. Empty string uses standard AWS S3, 'https://s3.wasabisys.com' uses Wasabi, etc..");
-   var awsProfile *string = pflag.StringP("aws-profile", "r", DEFAULT_AWS_PROFILE, "AWS profile to use");
+   var awsProfile *string = pflag.StringP("aws-profile", "l", DEFAULT_AWS_PROFILE, "AWS profile to use");
    var awsRegion *string = pflag.StringP("aws-region", "r", DEFAULT_AWS_REGION, "AWS region to use");
    var connectorType *string = pflag.StringP("type", "t", "", "Connector type ('s3' or 'local')");
    var hexKey *string = pflag.StringP("key", "k", "", "Encryption key in hex");
