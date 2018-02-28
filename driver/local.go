@@ -11,8 +11,8 @@ import (
    "github.com/eriq-augustine/elfs/connector/local"
 )
 
-func NewLocalDriver(key []byte, iv []byte, path string) (*Driver, error) {
-   connector, err := local.NewLocalConnector(path, false);
+func NewLocalDriver(key []byte, iv []byte, path string, force bool) (*Driver, error) {
+   connector, err := local.NewLocalConnector(path, force);
    if (err != nil) {
       return nil, errors.Wrap(err, "Failed to get local connector.");
    }

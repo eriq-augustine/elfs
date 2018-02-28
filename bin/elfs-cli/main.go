@@ -37,13 +37,13 @@ func main() {
 
    var fsDriver *driver.Driver = nil;
    if (args.ConnectorType == connector.CONNECTOR_TYPE_LOCAL) {
-      fsDriver, err = driver.NewLocalDriver(args.Key, args.IV, args.Path);
+      fsDriver, err = driver.NewLocalDriver(args.Key, args.IV, args.Path, args.Force);
       if (err != nil) {
          fmt.Printf("%+v\n", errors.Wrap(err, "Failed to get local driver"));
          os.Exit(2);
       }
    } else if (args.ConnectorType == connector.CONNECTOR_TYPE_S3) {
-      fsDriver, err = driver.NewS3Driver(args.Key, args.IV, args.Path, args.AwsCredPath, args.AwsProfile, args.AwsRegion, args.AwsEndpoint);
+      fsDriver, err = driver.NewS3Driver(args.Key, args.IV, args.Path, args.AwsCredPath, args.AwsProfile, args.AwsRegion, args.AwsEndpoint, args.Force);
       if (err != nil) {
          fmt.Printf("%+v\n", errors.Wrap(err, "Failed to get S3 driver"));
          os.Exit(3);
@@ -98,12 +98,14 @@ func main() {
 func parseArgs() (*args, error) {
    var awsCredPath *string = pflag.StringP("aws-creds", "c", DEFAULT_AWS_CRED_PATH, "Path to AWS credentials");
    var awsEndpoint *string = pflag.StringP("aws-endpoint", "e", DEFAULT_AWS_ENDPOINT, "AWS endpoint to use. Empty string uses standard AWS S3, 'https://s3.wasabisys.com' uses Wasabi, etc..");
-   var awsProfile *string = pflag.StringP("aws-profile", "f", DEFAULT_AWS_PROFILE, "AWS profile to use");
+   var awsProfile *string = pflag.StringP("aws-profile", "r", DEFAULT_AWS_PROFILE, "AWS profile to use");
    var awsRegion *string = pflag.StringP("aws-region", "r", DEFAULT_AWS_REGION, "AWS region to use");
    var connectorType *string = pflag.StringP("type", "t", "", "Connector type ('s3' or 'local')");
    var hexKey *string = pflag.StringP("key", "k", "", "Encryption key in hex");
    var hexIV *string = pflag.StringP("iv", "i", "", "IV in hex");
    var path *string = pflag.StringP("path", "p", "", "Path to the filesystem");
+   var force *bool = pflag.BoolP("force", "f", false, "Force the filesystem to mount regardless of locks");
+
    pflag.Parse();
 
    if (hexKey == nil || *hexKey == "") {
@@ -143,6 +145,7 @@ func parseArgs() (*args, error) {
       Key: key,
       IV: iv,
       Path: *path,
+      Force: *force,
    };
 
    return &rtn, nil;
@@ -194,4 +197,5 @@ type args struct {
    Key []byte
    IV []byte
    Path string
+   Force bool
 }
