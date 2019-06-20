@@ -2,153 +2,52 @@ package main;
 
 import (
    "bufio"
-   "encoding/hex"
    "fmt"
    "os"
-   "os/signal"
    "strings"
-   "syscall"
 
    "github.com/pkg/errors"
    shellquote "github.com/kballard/go-shellquote"
-   "github.com/spf13/pflag"
 
-   "github.com/eriq-augustine/elfs/connector"
    "github.com/eriq-augustine/elfs/driver"
    "github.com/eriq-augustine/elfs/user"
 )
 
-const (
-   DEFAULT_AWS_CRED_PATH = "config/elfs-wasabi-credentials"
-   DEFAULT_AWS_ENDPOINT = ""
-   DEFAULT_AWS_PROFILE = "elfsapi"
-   DEFAULT_AWS_REGION = "us-east-1"
-)
-
 func main() {
-   var activeUser *user.User = nil;
+    var fsDriver *driver.Driver = driver.GetDriverFromArgs();
+    defer fsDriver.Close();
 
-   args, err := parseArgs();
-   if (err != nil) {
-      pflag.Usage();
-      fmt.Printf("Error parsing args: %+v\n", err);
-      os.Exit(1);
-   }
+    var activeUser *user.User = nil;
+    var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin);
 
-   var fsDriver *driver.Driver = nil;
-   if (args.ConnectorType == connector.CONNECTOR_TYPE_LOCAL) {
-      fsDriver, err = driver.NewLocalDriver(args.Key, args.IV, args.Path, args.Force);
-      if (err != nil) {
-         fmt.Printf("%+v\n", errors.Wrap(err, "Failed to get local driver"));
-         os.Exit(2);
-      }
-   } else if (args.ConnectorType == connector.CONNECTOR_TYPE_S3) {
-      fsDriver, err = driver.NewS3Driver(args.Key, args.IV, args.Path, args.AwsCredPath, args.AwsProfile, args.AwsRegion, args.AwsEndpoint, args.Force);
-      if (err != nil) {
-         fmt.Printf("%+v\n", errors.Wrap(err, "Failed to get S3 driver"));
-         os.Exit(3);
-      }
-   } else {
-      fmt.Printf("Unknown connector type: [%s]\n", args.ConnectorType);
-      os.Exit(4);
-   }
+    for {
+        if (activeUser == nil) {
+            fmt.Printf("> ");
+        } else {
+            fmt.Printf("%s > ", activeUser.Name);
+        }
 
-   // Gracefully handle SIGINT and SIGTERM.
-   sigChan := make(chan os.Signal, 1);
-   signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM);
-   go func() {
-      <-sigChan;
-      fsDriver.Close();
-      os.Exit(0);
-   }();
+        if (!scanner.Scan()) {
+            break;
+        }
 
-   var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin);
-   for {
-      if (activeUser == nil) {
-         fmt.Printf("> ");
-      } else {
-         fmt.Printf("%s > ", activeUser.Name);
-      }
+        var command string = strings.TrimSpace(scanner.Text());
 
-      if (!scanner.Scan()) {
-         break;
-      }
+        if (command == "") {
+            continue;
+        }
 
-      var command string = strings.TrimSpace(scanner.Text());
+        if (strings.HasPrefix(command, COMMAND_QUIT)) {
+            break;
+        }
 
-      if (command == "") {
-         continue;
-      }
-
-      if (strings.HasPrefix(command, COMMAND_QUIT)) {
-         break;
-      }
-
-      err = processCommand(fsDriver, &activeUser, command);
-      if (err != nil) {
-         fmt.Println("Failed to run command:");
-         fmt.Printf("%+v\n", err);
-      }
-   }
-   fmt.Println("");
-
-   fsDriver.Close();
-}
-
-func parseArgs() (*args, error) {
-   var awsCredPath *string = pflag.StringP("aws-creds", "c", DEFAULT_AWS_CRED_PATH, "Path to AWS credentials");
-   var awsEndpoint *string = pflag.StringP("aws-endpoint", "e", DEFAULT_AWS_ENDPOINT, "AWS endpoint to use. Empty string uses standard AWS S3, 'https://s3.wasabisys.com' uses Wasabi, etc..");
-   var awsProfile *string = pflag.StringP("aws-profile", "l", DEFAULT_AWS_PROFILE, "AWS profile to use");
-   var awsRegion *string = pflag.StringP("aws-region", "r", DEFAULT_AWS_REGION, "AWS region to use");
-   var connectorType *string = pflag.StringP("type", "t", "", "Connector type ('s3' or 'local')");
-   var hexKey *string = pflag.StringP("key", "k", "", "Encryption key in hex");
-   var hexIV *string = pflag.StringP("iv", "i", "", "IV in hex");
-   var path *string = pflag.StringP("path", "p", "", "Path to the filesystem");
-   var force *bool = pflag.BoolP("force", "f", false, "Force the filesystem to mount regardless of locks");
-
-   pflag.Parse();
-
-   if (hexKey == nil || *hexKey == "") {
-      return nil, errors.New("Error: Key required.");
-   }
-
-   if (hexIV == nil || *hexIV == "") {
-      return nil, errors.New("Error: IV required.");
-   }
-
-   if (connectorType == nil || *connectorType == "") {
-      // Can't take the address of a constant.
-      var tempType string = connector.CONNECTOR_TYPE_LOCAL;
-      connectorType = &tempType;
-   }
-
-   if (path == nil || *path == "") {
-      return nil, errors.New("Error: Path required.");
-   }
-
-   key, err := hex.DecodeString(*hexKey);
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Could not decode hex key.");
-   }
-
-   iv, err := hex.DecodeString(*hexIV);
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Could not decode hex iv.");
-   }
-
-   var rtn args = args{
-      AwsCredPath: *awsCredPath,
-      AwsEndpoint: *awsEndpoint,
-      AwsProfile: *awsProfile,
-      AwsRegion: *awsRegion,
-      ConnectorType: *connectorType,
-      Key: key,
-      IV: iv,
-      Path: *path,
-      Force: *force,
-   };
-
-   return &rtn, nil;
+        err := processCommand(fsDriver, &activeUser, command);
+        if (err != nil) {
+            fmt.Println("Failed to run command:");
+            fmt.Printf("%+v\n", err);
+        }
+    }
+    fmt.Println("");
 }
 
 func processCommand(fsDriver *driver.Driver, activeUser **user.User, input string) error {
@@ -186,16 +85,4 @@ func processCommand(fsDriver *driver.Driver, activeUser **user.User, input strin
    }
 
    return nil;
-}
-
-type args struct {
-   AwsCredPath string
-   AwsEndpoint string
-   AwsProfile string
-   AwsRegion string
-   ConnectorType string
-   Key []byte
-   IV []byte
-   Path string
-   Force bool
 }
