@@ -25,7 +25,7 @@ const (
 // This is meant to be called from a command line.
 // This will just exit on bad args.
 // The caller is responsible for closing the driver when done.
-func GetDriverFromArgs() *Driver {
+func GetDriverFromArgs() (*Driver, *Args) {
     args, err := parseArgs();
     if (err != nil) {
         pflag.Usage();
@@ -60,7 +60,7 @@ func GetDriverFromArgs() *Driver {
         os.Exit(0);
     }();
 
-    return fsDriver;
+    return fsDriver, args;
 }
 
 func parseArgs() (*Args, error) {
@@ -72,6 +72,8 @@ func parseArgs() (*Args, error) {
     var hexKey *string = pflag.StringP("key", "k", "", "Encryption key in hex");
     var hexIV *string = pflag.StringP("iv", "i", "", "IV in hex");
     var path *string = pflag.StringP("path", "p", "", "Path to the filesystem");
+    var user *string = pflag.StringP("user", "u", "root", "User to login as");
+    var pass *string = pflag.StringP("password", "w", "", "Password to use for login");
     var force *bool = pflag.BoolP("force", "f", false, "Force the filesystem to mount regardless of locks");
 
     pflag.Parse();
@@ -113,6 +115,8 @@ func parseArgs() (*Args, error) {
         Key: key,
         IV: iv,
         Path: *path,
+        User: *user,
+        Pass: *pass,
         Force: *force,
     };
 
@@ -128,5 +132,7 @@ type Args struct {
     Key []byte
     IV []byte
     Path string
+    User string
+    Pass string
     Force bool
 }

@@ -11,21 +11,23 @@ import (
 
    "github.com/eriq-augustine/elfs/driver"
    "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 func main() {
-    var fsDriver *driver.Driver = driver.GetDriverFromArgs();
+    fsDriver, args := driver.GetDriverFromArgs();
     defer fsDriver.Close();
 
-    var activeUser *user.User = nil;
+    activeUser, err := fsDriver.UserAuth(args.User, util.Weakhash(args.User, args.Pass));
+    if (err != nil) {
+        fmt.Printf("Failed to authenticate user: %+v\n", err);
+        os.Exit(2);
+    }
+
     var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin);
 
     for {
-        if (activeUser == nil) {
-            fmt.Printf("> ");
-        } else {
-            fmt.Printf("%s > ", activeUser.Name);
-        }
+        fmt.Printf("%s > ", activeUser.Name);
 
         if (!scanner.Scan()) {
             break;
@@ -65,23 +67,14 @@ func processCommand(fsDriver *driver.Driver, activeUser **user.User, input strin
       return nil;
    }
 
-   if (*activeUser == nil && commandInfo.RequireLogin) {
-      fmt.Printf("Command [%s] requires login.\n", command);
-      return nil;
-   }
-
    if (!commandInfo.ValidateArgs(args)) {
       fmt.Printf("USAGE: %s\n", commandInfo.Usage());
       return nil;
    }
 
-   result, err := commandInfo.Function(fsDriver, *activeUser, args);
+   err = commandInfo.Function(fsDriver, *activeUser, args);
    if (err != nil) {
       return errors.WithStack(err);
-   }
-
-   if (commandInfo.Name == COMMAND_LOGIN) {
-      *activeUser = result.(*user.User);
    }
 
    return nil;

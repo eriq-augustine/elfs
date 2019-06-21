@@ -9,7 +9,7 @@ import (
 )
 
 // Params: (fs driver, args (not including invocation)).
-type commandFunction func(*driver.Driver, *user.User, []string) (interface{}, error);
+type commandFunction func(*driver.Driver, *user.User, []string) (error);
 
 type commandArg struct {
    Description string
@@ -20,7 +20,6 @@ type commandInfo struct {
    Name string
    Function commandFunction
    Args []commandArg
-   RequireLogin bool
    Variatic bool
 }
 

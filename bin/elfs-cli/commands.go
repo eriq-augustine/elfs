@@ -21,7 +21,6 @@ import (
 )
 
 const (
-   COMMAND_LOGIN = "login"
    COMMAND_QUIT = "quit"
 )
 
@@ -36,18 +35,7 @@ func init() {
       Args: []commandArg{
          commandArg{"file", false},
       },
-      RequireLogin: true,
       Variatic: true,
-   };
-
-   commands["create"] = commandInfo{
-      Name: "create",
-      Function: create,
-      Args: []commandArg{
-         commandArg{"root password", false},
-      },
-      RequireLogin: false,
-      Variatic: false,
    };
 
    commands["demote"] = commandInfo{
@@ -57,7 +45,6 @@ func init() {
          commandArg{"group id", false},
          commandArg{"user id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -68,7 +55,6 @@ func init() {
          commandArg{"file", false},
          commandArg{"external path", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -78,7 +64,6 @@ func init() {
       Args: []commandArg{
          commandArg{"group name", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -88,7 +73,6 @@ func init() {
       Args: []commandArg{
          commandArg{"group id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -99,7 +83,6 @@ func init() {
          commandArg{"group id", false},
          commandArg{"user id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -110,7 +93,6 @@ func init() {
          commandArg{"group id", false},
          commandArg{"user id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -118,7 +100,6 @@ func init() {
       Name: "grouplist",
       Function: grouplist,
       Args: []commandArg{},
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -126,7 +107,6 @@ func init() {
       Name: "help",
       Function: help,
       Args: []commandArg{},
-      RequireLogin: false,
       Variatic: false,
    };
 
@@ -137,18 +117,6 @@ func init() {
          commandArg{"external file", false},
          commandArg{"parent id", true},
       },
-      RequireLogin: true,
-      Variatic: false,
-   };
-
-   commands[COMMAND_LOGIN] = commandInfo{
-      Name: COMMAND_LOGIN,
-      Function: login,
-      Args: []commandArg{
-         commandArg{"username", false},
-         commandArg{"password", false},
-      },
-      RequireLogin: false,
       Variatic: false,
    };
 
@@ -158,7 +126,6 @@ func init() {
       Args: []commandArg{
          commandArg{"dir id", true},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -169,7 +136,6 @@ func init() {
          commandArg{"dir name", false},
          commandArg{"parent id", true},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -180,7 +146,6 @@ func init() {
          commandArg{"target id", false},
          commandArg{"new parent id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -191,7 +156,6 @@ func init() {
          commandArg{"group id", false},
          commandArg{"user id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -202,7 +166,6 @@ func init() {
          commandArg{"target id", false},
          commandArg{"new name", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -213,7 +176,6 @@ func init() {
          commandArg{"-r", true},
          commandArg{"dirent id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -224,7 +186,6 @@ func init() {
          commandArg{"username", false},
          commandArg{"password", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -234,7 +195,6 @@ func init() {
       Args: []commandArg{
          commandArg{"username", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -242,7 +202,6 @@ func init() {
       Name: "userlist",
       Function: userlist,
       Args: []commandArg{},
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -253,7 +212,6 @@ func init() {
          commandArg{"dirent id", false},
          commandArg{"new owner id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -266,7 +224,6 @@ func init() {
          commandArg{"group id", false},
          commandArg{"2|4|6", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 
@@ -277,14 +234,13 @@ func init() {
          commandArg{"dirent id", false},
          commandArg{"group id", false},
       },
-      RequireLogin: true,
       Variatic: false,
    };
 }
 
 // Commands
 
-func cat(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func cat(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var buffer []byte = make([]byte, cipherio.IO_BLOCK_SIZE);
 
    for _, arg := range(args) {
@@ -293,7 +249,7 @@ func cat(fsDriver *driver.Driver, activeUser *user.User, args []string) (interfa
 
       reader, err := fsDriver.Read(activeUser.Id, dirent.Id(arg));
       if (err != nil) {
-         return nil, errors.Wrap(err, "Failed to open fs file for reading: " + arg);
+         return errors.Wrap(err, "Failed to open fs file for reading: " + arg);
       }
 
       var done bool = false;
@@ -301,7 +257,7 @@ func cat(fsDriver *driver.Driver, activeUser *user.User, args []string) (interfa
          readSize, err := reader.Read(buffer);
          if (err != nil) {
             if (err != io.EOF) {
-               return nil, errors.Wrap(err, "Failed to read fs file: " + arg);
+               return errors.Wrap(err, "Failed to read fs file: " + arg);
             }
 
             done = true;
@@ -316,20 +272,20 @@ func cat(fsDriver *driver.Driver, activeUser *user.User, args []string) (interfa
       reader.Close();
    }
 
-   return nil, nil;
+   return nil;
 }
 
-func export(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func export(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var source dirent.Id = dirent.Id(args[0]);
    var dest string = args[1];
 
    fileInfo, err := fsDriver.GetDirent(activeUser.Id, source);
    if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to get dirent for export");
+      return errors.Wrap(err, "Failed to get dirent for export");
    }
 
    if (!fileInfo.IsFile) {
-      return nil, errors.New("Recursive export is currently not supported.");
+      return errors.New("Recursive export is currently not supported.");
    }
 
    // Check if the external path is a directory.
@@ -341,7 +297,7 @@ func export(fsDriver *driver.Driver, activeUser *user.User, args []string) (inte
 
    outFile, err := os.Create(dest);
    if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to create outout file for export.");
+      return errors.Wrap(err, "Failed to create outout file for export.");
    }
    defer outFile.Close();
 
@@ -349,7 +305,7 @@ func export(fsDriver *driver.Driver, activeUser *user.User, args []string) (inte
 
    reader, err := fsDriver.Read(activeUser.Id, source);
    if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to open fs file for reading: " + string(source));
+      return errors.Wrap(err, "Failed to open fs file for reading: " + string(source));
    }
    defer reader.Close();
 
@@ -358,7 +314,7 @@ func export(fsDriver *driver.Driver, activeUser *user.User, args []string) (inte
       readSize, err := reader.Read(buffer);
       if (err != nil) {
          if (err != io.EOF) {
-            return nil, errors.Wrap(err, "Failed to read fs file: " + string(source));
+            return errors.Wrap(err, "Failed to read fs file: " + string(source));
          }
 
          done = true;
@@ -369,14 +325,10 @@ func export(fsDriver *driver.Driver, activeUser *user.User, args []string) (inte
       }
    }
 
-   return nil, nil;
+   return nil;
 }
 
-func create(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
-   return nil, fsDriver.CreateFilesystem(util.Weakhash(user.ROOT_NAME, args[0]));
-}
-
-func help(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func help(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var keys []string = make([]string, 0, len(commands));
    for key, _ := range(commands) {
       keys = append(keys, key);
@@ -389,10 +341,13 @@ func help(fsDriver *driver.Driver, activeUser *user.User, args []string) (interf
       fmt.Printf("   %s\n", commands[key].Usage());
    }
 
-   return nil, nil;
+   // Print quit specially, since it caught higher up.
+   fmt.Printf("      %s\n", COMMAND_QUIT);
+
+   return nil;
 }
 
-func importFile(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func importFile(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var localPath string = args[0];
 
    var parent dirent.Id = dirent.ROOT_ID;
@@ -400,20 +355,10 @@ func importFile(fsDriver *driver.Driver, activeUser *user.User, args []string) (
       parent = dirent.Id(args[1]);
    }
 
-   _, err := recursiveImport(fsDriver, activeUser, localPath, parent);
-   return nil, errors.WithStack(err);
+   return errors.WithStack(recursiveImport(fsDriver, activeUser, localPath, parent));
 }
 
-func login(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
-   authUser, err := fsDriver.UserAuth(args[0], util.Weakhash(args[0], args[1]));
-   if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to authenticate user.");
-   }
-
-   return authUser, nil;
-}
-
-func ls(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func ls(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var id dirent.Id = dirent.ROOT_ID;
    if (len(args) == 1) {
       id = dirent.Id(args[0]);
@@ -421,7 +366,7 @@ func ls(fsDriver *driver.Driver, activeUser *user.User, args []string) (interfac
 
    entries, err := fsDriver.List(activeUser.Id, id);
    if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to list directory: " + string(id));
+      return errors.Wrap(err, "Failed to list directory: " + string(id));
    }
 
    for _, entry := range(entries) {
@@ -459,10 +404,10 @@ func ls(fsDriver *driver.Driver, activeUser *user.User, args []string) (interfac
       fmt.Println(strings.Join(parts, "\t"));
    }
 
-   return nil, nil;
+   return nil;
 }
 
-func mkdir(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func mkdir(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var name string = args[0];
 
    var parent dirent.Id = dirent.ROOT_ID;
@@ -472,30 +417,30 @@ func mkdir(fsDriver *driver.Driver, activeUser *user.User, args []string) (inter
 
    id, err := fsDriver.MakeDir(activeUser.Id, name, parent, map[group.Id]group.Permission{});
    if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to make dir: " + name);
+      return errors.Wrap(err, "Failed to make dir: " + name);
    }
 
    fmt.Println(id);
 
-   return nil, nil;
+   return nil;
 }
 
-func move(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func move(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var targetId dirent.Id = dirent.Id(args[0]);
    var newParentId dirent.Id = dirent.Id(args[1]);
 
-   return nil, errors.WithStack(fsDriver.Move(activeUser.Id, targetId, newParentId));
+   return errors.WithStack(fsDriver.Move(activeUser.Id, targetId, newParentId));
 }
 
-func rename(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func rename(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var targetId dirent.Id = dirent.Id(args[0]);
 
-   return nil, errors.WithStack(fsDriver.Rename(activeUser.Id, targetId, args[1]));
+   return errors.WithStack(fsDriver.Rename(activeUser.Id, targetId, args[1]));
 }
 
-func remove(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func remove(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    if (len(args) == 2 && args[0] != "-r") {
-      return nil, errors.New(fmt.Sprintf("Unexpected arg (%s), expecting -r", args[0]));
+      return errors.New(fmt.Sprintf("Unexpected arg (%s), expecting -r", args[0]));
    }
 
    var isFile = true;
@@ -513,96 +458,96 @@ func remove(fsDriver *driver.Driver, activeUser *user.User, args []string) (inte
       err = fsDriver.RemoveDir(activeUser.Id, direntId);
    }
 
-   return nil, errors.WithStack(err);
+   return errors.WithStack(err);
 }
 
-func useradd(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func useradd(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    _, err := fsDriver.AddUser(activeUser.Id, args[0], util.Weakhash(args[0], args[1]));
-   return nil, errors.Wrap(err, "Failed to add user");
+   return errors.Wrap(err, "Failed to add user");
 }
 
-func userdel(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func userdel(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    userId, err := strconv.Atoi(args[0]);
    if (err != nil) {
-      return nil, errors.Wrap(err, "Failed to parse user id");
+      return errors.Wrap(err, "Failed to parse user id");
    }
 
    err = fsDriver.RemoveUser(activeUser.Id, user.Id(userId));
-   return nil, errors.Wrap(err, "Failed to remove user");
+   return errors.Wrap(err, "Failed to remove user");
 }
 
-func userlist(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func userlist(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    users := fsDriver.GetUsers();
 
    for _, user := range(users) {
       fmt.Printf("%s\t%d\n", user.Name, int(user.Id));
    }
 
-   return nil, nil;
+   return nil;
 }
 
-func demote(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func demote(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    groupId, err := strconv.Atoi(args[0]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[0]);
+      return errors.Wrap(err, args[0]);
    }
 
    userId, err := strconv.Atoi(args[1]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[1]);
+      return errors.Wrap(err, args[1]);
    }
 
-   return nil, errors.WithStack(fsDriver.DemoteUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
+   return errors.WithStack(fsDriver.DemoteUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
 }
 
-func groupadd(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func groupadd(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    newId, err := fsDriver.AddGroup(activeUser.Id, args[0]);
    if (err != nil) {
-      return nil, errors.WithStack(err);
+      return errors.WithStack(err);
    }
 
    fmt.Println(newId);
-   return nil, nil;
+   return nil;
 }
 
-func groupdel(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func groupdel(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    groupId, err := strconv.Atoi(args[0]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[0]);
+      return errors.Wrap(err, args[0]);
    }
 
-   return nil, errors.WithStack(fsDriver.DeleteGroup(activeUser.Id, group.Id(groupId)));
+   return errors.WithStack(fsDriver.DeleteGroup(activeUser.Id, group.Id(groupId)));
 }
 
-func groupjoin(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func groupjoin(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    groupId, err := strconv.Atoi(args[0]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[0]);
+      return errors.Wrap(err, args[0]);
    }
 
    userId, err := strconv.Atoi(args[1]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[1]);
+      return errors.Wrap(err, args[1]);
    }
 
-   return nil, errors.WithStack(fsDriver.JoinGroup(activeUser.Id, user.Id(userId), group.Id(groupId)));
+   return errors.WithStack(fsDriver.JoinGroup(activeUser.Id, user.Id(userId), group.Id(groupId)));
 }
 
-func groupkick(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func groupkick(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    groupId, err := strconv.Atoi(args[0]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[0]);
+      return errors.Wrap(err, args[0]);
    }
 
    userId, err := strconv.Atoi(args[1]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[1]);
+      return errors.Wrap(err, args[1]);
    }
 
-   return nil, errors.WithStack(fsDriver.KickUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
+   return errors.WithStack(fsDriver.KickUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
 }
 
-func grouplist(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func grouplist(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    groups := fsDriver.GetGroups();
 
    var parts []string = make([]string, 0);
@@ -626,37 +571,37 @@ func grouplist(fsDriver *driver.Driver, activeUser *user.User, args []string) (i
       fmt.Println(strings.Join(parts, "\t"));
    }
 
-   return nil, nil;
+   return nil;
 }
 
-func promote(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func promote(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    groupId, err := strconv.Atoi(args[0]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[0]);
+      return errors.Wrap(err, args[0]);
    }
 
    userId, err := strconv.Atoi(args[1]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[1]);
+      return errors.Wrap(err, args[1]);
    }
 
-   return nil, errors.WithStack(fsDriver.PromoteUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
+   return errors.WithStack(fsDriver.PromoteUser(activeUser.Id, user.Id(userId), group.Id(groupId)));
 }
 
-func chown(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func chown(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var direntId dirent.Id = dirent.Id(args[0]);
 
    userId, err := strconv.Atoi(args[1]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[1]);
+      return errors.Wrap(err, args[1]);
    }
 
-   return nil, errors.WithStack(fsDriver.ChangeOwner(activeUser.Id, direntId, user.Id(userId)));
+   return errors.WithStack(fsDriver.ChangeOwner(activeUser.Id, direntId, user.Id(userId)));
 }
 
-func permissionAdd(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func permissionAdd(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    if (len(args) == 4 && args[0] != "-r") {
-      return nil, errors.New(fmt.Sprintf("Unexpected arg (%s), expecting -r", args[0]));
+      return errors.New(fmt.Sprintf("Unexpected arg (%s), expecting -r", args[0]));
    }
 
    var recursive bool = false;
@@ -669,16 +614,16 @@ func permissionAdd(fsDriver *driver.Driver, activeUser *user.User, args []string
 
    groupId, err := strconv.Atoi(args[1]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[1]);
+      return errors.Wrap(err, args[1]);
    }
 
    permission, err := strconv.Atoi(args[2]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[2]);
+      return errors.Wrap(err, args[2]);
    }
 
    if (permission != 2 && permission != 4 && permission != 6) {
-      return nil, errors.Errorf("Bad permission number: %d. Use UNIX-style for read and write", permission);
+      return errors.Errorf("Bad permission number: %d. Use UNIX-style for read and write", permission);
    }
 
    var read bool = (permission % 4 == 0);
@@ -690,65 +635,64 @@ func permissionAdd(fsDriver *driver.Driver, activeUser *user.User, args []string
       err = fsDriver.PutGroupAccess(activeUser.Id, direntId, group.Id(groupId), group.NewPermission(read, write));
    }
 
-   return nil, errors.WithStack(err);
+   return errors.WithStack(err);
 }
 
-func permissionDelete(fsDriver *driver.Driver, activeUser *user.User, args []string) (interface{}, error) {
+func permissionDelete(fsDriver *driver.Driver, activeUser *user.User, args []string) (error) {
    var direntId dirent.Id = dirent.Id(args[0]);
 
    groupId, err := strconv.Atoi(args[1]);
    if (err != nil) {
-      return nil, errors.Wrap(err, args[1]);
+      return errors.Wrap(err, args[1]);
    }
 
-   return nil, errors.WithStack(fsDriver.RemoveGroupAccess(activeUser.Id, direntId, group.Id(groupId)));
+   return errors.WithStack(fsDriver.RemoveGroupAccess(activeUser.Id, direntId, group.Id(groupId)));
 }
 
 // Helpers
 
-func importFileInternal(fsDriver *driver.Driver, activeUser *user.User, path string, parent dirent.Id) (interface{}, error) {
+func importFileInternal(fsDriver *driver.Driver, activeUser *user.User, path string, parent dirent.Id) (error) {
    fileReader, err := os.Open(path);
    if (err != nil) {
-      return nil, errors.Wrap(err, path);
+      return errors.Wrap(err, path);
    }
    defer fileReader.Close();
 
    err = fsDriver.Put(activeUser.Id, filepath.Base(path), fileReader, map[group.Id]group.Permission{}, parent);
    if (err != nil) {
-      return nil, errors.Wrap(err, path);
+      return errors.Wrap(err, path);
    }
 
-   return nil, nil;
+   return nil;
 }
 
-func recursiveImport(fsDriver *driver.Driver, activeUser *user.User, path string, parent dirent.Id) (interface{}, error) {
+func recursiveImport(fsDriver *driver.Driver, activeUser *user.User, path string, parent dirent.Id) (error) {
    fileInfo, err := os.Stat(path);
    if (err != nil) {
-      return nil, errors.Wrap(err, path);
+      return errors.Wrap(err, path);
    }
 
    if (!fileInfo.IsDir()) {
-      _, err = importFileInternal(fsDriver, activeUser, path, parent);
-      return nil, errors.WithStack(err);
+      return errors.WithStack(importFileInternal(fsDriver, activeUser, path, parent))
    }
 
    // First make the actual dir and then import the children.
    newId, err := fsDriver.MakeDir(activeUser.Id, fileInfo.Name(), parent, map[group.Id]group.Permission{});
    if (err != nil) {
-      return nil, errors.Wrap(err, path);
+      return errors.Wrap(err, path);
    }
 
    children, err := ioutil.ReadDir(path);
    if (err != nil) {
-      return nil, errors.Wrap(err, path);
+      return errors.Wrap(err, path);
    }
 
    for _, child := range(children) {
-      _, err = recursiveImport(fsDriver, activeUser, filepath.Join(path, child.Name()), newId);
+      err = recursiveImport(fsDriver, activeUser, filepath.Join(path, child.Name()), newId);
       if (err != nil) {
-         return nil, errors.Wrap(err, path);
+         return errors.Wrap(err, path);
       }
    }
 
-   return nil, nil;
+   return nil;
 }
