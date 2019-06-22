@@ -2,6 +2,7 @@ package main
 
 import (
     "fmt"
+    "io"
     "os"
     "os/signal"
     "syscall"
@@ -9,7 +10,7 @@ import (
 
     "bazil.org/fuse"
     "bazil.org/fuse/fs"
-    _ "bazil.org/fuse/fs/fstestutil"
+    // "bazil.org/fuse/fs/fstestutil"
     "github.com/pkg/errors"
     "golang.org/x/net/context"
 
@@ -139,6 +140,7 @@ func (this fuseFS) Root() (fs.Node, error) {
 //  - fs.Node
 //  - fs.NodeStringLookuper
 //  - fs.HandleReadDirAller
+//  - fs.HandleReadAller
 type fuseDirent struct {
     dirent *dirent.Dirent
     driver *driver.Driver
@@ -220,4 +222,29 @@ func (this fuseDirent) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
     }
 
     return rtn, nil;
+}
+
+func (this fuseDirent) ReadAll(ctx context.Context) ([]byte, error) {
+    if (!this.dirent.IsFile) {
+        return nil, fuse.Errno(syscall.EISDIR);
+    }
+
+    var buffer []byte = make([]byte, this.dirent.Size);
+
+    reader, err := this.driver.Read(this.user.Id, this.dirent.Id);
+    if (err != nil) {
+        return nil, errors.Wrap(err, "Failed to open fs file for reading: " + string(this.dirent.Id));
+    }
+    defer reader.Close();
+
+    readSize, err := reader.Read(buffer);
+    if (err != nil && err != io.EOF) {
+        return nil, errors.Wrap(err, "Failed to read fs file: " + string(this.dirent.Id));
+    }
+
+    if (uint64(readSize) != this.dirent.Size) {
+        return nil, errors.New(fmt.Sprintf("Short read on '%s'. Expected %d, got %d.", this.dirent.Id, this.dirent.Size, readSize));
+    }
+
+    return buffer, nil;
 }
