@@ -1,22 +1,28 @@
 package main
 
 import (
-   "fmt"
-   "os"
+    "fmt"
+    "os"
     "os/signal"
     "syscall"
+    "time"
 
-   "bazil.org/fuse"
-   "bazil.org/fuse/fs"
-   _ "bazil.org/fuse/fs/fstestutil"
-   "golang.org/x/net/context"
+    "bazil.org/fuse"
+    "bazil.org/fuse/fs"
+    _ "bazil.org/fuse/fs/fstestutil"
+    "github.com/pkg/errors"
+    "golang.org/x/net/context"
 
-   "github.com/eriq-augustine/elfs/driver"
-   "github.com/eriq-augustine/elfs/util"
+    "github.com/eriq-augustine/elfs/cipherio"
+    "github.com/eriq-augustine/elfs/dirent"
+    "github.com/eriq-augustine/elfs/driver"
+    "github.com/eriq-augustine/elfs/user"
+    "github.com/eriq-augustine/elfs/util"
 )
 
 const (
     DEFAULT_MOUNTPOINT = "/tmp/elfs/mount"
+    FUSE_BLOCKSIZE = 512
 )
 
 func main() {
@@ -24,9 +30,7 @@ func main() {
     defer fsDriver.Close();
 
     // Auth user.
-    // TODO
-    // activeUser, err := fsDriver.UserAuth(args.User, util.Weakhash(args.User, args.Pass));
-    _, err := fsDriver.UserAuth(args.User, util.Weakhash(args.User, args.Pass));
+    activeUser, err := fsDriver.UserAuth(args.User, util.Weakhash(args.User, args.Pass));
     if (err != nil) {
         fmt.Printf("Failed to authenticate user: %+v\n", err);
         os.Exit(10);
@@ -55,7 +59,8 @@ func main() {
     }();
 
     // Serve.
-    err = fs.Serve(connection, FS{})
+    // err = fs.Serve(connection, FS{})
+    err = fs.Serve(connection, fuseFS{fsDriver, activeUser})
     if err != nil {
         fmt.Printf("Failed to serve filesystem: %+v\n", err);
         os.Exit(12);
@@ -114,55 +119,105 @@ func mount(mountpoint string) (*fuse.Conn, error) {
     );
 }
 
-
-
-
-
-
-
-
-
-
-
-type FS struct{}
-type Dir struct{}
-type File struct{}
-
-func (FS) Root() (fs.Node, error) {
-    return Dir{}, nil
+// Implemented interfaces:
+//  - fs.FS
+type fuseFS struct {
+    driver *driver.Driver
+    user *user.User
 }
 
-
-func (Dir) Attr(ctx context.Context, a *fuse.Attr) error {
-    a.Inode = 1
-    a.Mode = os.ModeDir | 0555
-    return nil
-}
-
-func (Dir) Lookup(ctx context.Context, name string) (fs.Node, error) {
-    if name == "hello" {
-        return File{}, nil
+func (this fuseFS) Root() (fs.Node, error) {
+    fileInfo, err := this.driver.GetDirent(this.user.Id, dirent.ROOT_ID);
+    if (err != nil) {
+        return nil, errors.Wrap(err, "Unable to get root.");
     }
-    return nil, fuse.ENOENT
+
+    return fuseDirent{fileInfo, this.driver, this.user}, nil;
 }
 
-var dirDirs = []fuse.Dirent{
-    {Inode: 2, Name: "hello", Type: fuse.DT_File},
+// Implemented interfaces:
+//  - fs.Node
+//  - fs.NodeStringLookuper
+//  - fs.HandleReadDirAller
+type fuseDirent struct {
+    dirent *dirent.Dirent
+    driver *driver.Driver
+    user *user.User
 }
 
-func (Dir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-    return dirDirs, nil
+func (this fuseDirent) Attr(ctx context.Context, attr *fuse.Attr) error {
+    attr.Inode = 0;  // Dynamic.
+    attr.Size = this.dirent.Size;
+    attr.Blocks = util.CeilUint64(float64(this.dirent.Size) / FUSE_BLOCKSIZE);
+    attr.Atime = time.Unix(this.dirent.AccessTimestamp, 0);
+    attr.Mtime = time.Unix(this.dirent.ModTimestamp, 0);
+    attr.Ctime = time.Unix(this.dirent.CreateTimestamp, 0);
+    attr.Crtime = time.Unix(this.dirent.CreateTimestamp, 0);
+    attr.Nlink = 1;
+    attr.Uid = uint32(this.dirent.Owner);
+    attr.Gid = 0;  // Group permissions are more of an ACL.
+    // attr.Rdev
+    // attr.Flags
+    attr.BlockSize = cipherio.IO_BLOCK_SIZE;
+
+    if (this.dirent.IsFile) {
+        attr.Mode = 0555;
+    } else {
+        attr.Mode = os.ModeDir | 0555;
+    }
+
+    return nil;
 }
 
-const greeting = "hello, world\n"
+func (this fuseDirent) Lookup(ctx context.Context, name string) (fs.Node, error) {
+    if (this.dirent.IsFile) {
+        return nil, fuse.ENOENT;
+    }
 
-func (File) Attr(ctx context.Context, a *fuse.Attr) error {
-    a.Inode = 2
-    a.Mode = 0444
-    a.Size = uint64(len(greeting))
-    return nil
+    // Get the children for this dir.
+    entries, err := this.driver.List(this.user.Id, this.dirent.Id);
+    if (err != nil) {
+        return nil, errors.Wrap(err, "Failed to list directory: " + string(this.dirent.Id));
+    }
+
+    for _, entry := range(entries) {
+        if (entry.Name != name) {
+            continue;
+        }
+
+        return fuseDirent{entry, this.driver, this.user}, nil;
+    }
+
+    return nil, fuse.ENOENT;
 }
 
-func (File) ReadAll(ctx context.Context) ([]byte, error) {
-    return []byte(greeting), nil
+func (this fuseDirent) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
+    if (this.dirent.IsFile) {
+        return nil, fuse.ENOENT;
+    }
+
+    // Get the children for this dir.
+    entries, err := this.driver.List(this.user.Id, this.dirent.Id);
+    if (err != nil) {
+        return nil, errors.Wrap(err, "Failed to list directory: " + string(this.dirent.Id));
+    }
+
+    var rtn []fuse.Dirent = make([]fuse.Dirent, 0, len(entries));
+
+    for _, entry := range(entries) {
+        var direntType fuse.DirentType = fuse.DT_Dir;
+        if (entry.IsFile) {
+            direntType = fuse.DT_File;
+        }
+
+        var fuseDirent fuse.Dirent = fuse.Dirent{
+            Inode: 0,
+            Type: direntType,
+            Name: entry.Name,
+        };
+
+        rtn = append(rtn, fuseDirent);
+    }
+
+    return rtn, nil;
 }
