@@ -10,6 +10,7 @@ package main
 //  - fs.NodeFsyncer
 //  - fs.NodeMkdirer
 //  - fs.NodeRemover
+//  - fs.NodeRenamer
 //  - fs.NodeStringLookuper
 
 import (
@@ -176,4 +177,34 @@ func (this fuseDirent) Remove(ctx context.Context, request *fuse.RemoveRequest) 
     }
 
     return errors.WithStack(err);
+}
+
+func (this fuseDirent) Rename(ctx context.Context, request *fuse.RenameRequest, newDir fs.Node) error {
+    // Note that the context dirent is the current parent.
+
+    var err error;
+    var newParent fuseDirent = newDir.(fuseDirent);
+
+    var child *dirent.Dirent = this.driver.FetchChildByName(request.OldName, this.dirent.Id);
+    if (child == nil) {
+        return fuse.ENOENT;
+    }
+
+    // First check to see if we need to move the dirent (assign a new parent).
+    if (child.Parent != newParent.dirent.Id) {
+        err = this.driver.Move(this.user.Id, child.Id, newParent.dirent.Id);
+        if (err != nil) {
+            return errors.WithStack(err);
+        }
+    }
+
+    // Now that the parent is settled, check to see if we need a rename.
+    if (request.OldName != request.NewName) {
+        err = this.driver.Rename(this.user.Id, child.Id, request.NewName);
+        if (err != nil) {
+            return errors.WithStack(err);
+        }
+    }
+
+    return nil;
 }
