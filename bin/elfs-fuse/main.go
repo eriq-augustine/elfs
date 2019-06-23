@@ -2,19 +2,15 @@ package main
 
 import (
     "fmt"
-    "io"
     "os"
     "os/signal"
     "syscall"
-    "time"
 
     "bazil.org/fuse"
     "bazil.org/fuse/fs"
     "bazil.org/fuse/fs/fstestutil"
     "github.com/pkg/errors"
-    "golang.org/x/net/context"
 
-    "github.com/eriq-augustine/elfs/cipherio"
     "github.com/eriq-augustine/elfs/dirent"
     "github.com/eriq-augustine/elfs/driver"
     "github.com/eriq-augustine/elfs/user"
@@ -23,7 +19,6 @@ import (
 
 const (
     DEFAULT_MOUNTPOINT = "/tmp/elfs/mount"
-    FUSE_BLOCKSIZE = 512
 )
 
 func main() {
@@ -92,7 +87,8 @@ func mount(mountpoint string) (*fuse.Conn, error) {
         // Main type is always "fuse".
         fuse.Subtype("elfs"),
 
-        fuse.ReadOnly(),
+        // TODO(eriq): Flag.
+        // fuse.ReadOnly(),
 
         // Prefetch amount in bytes.
         // fuse.MaxReadahead(TODO),
@@ -137,157 +133,4 @@ func (this fuseFS) Root() (fs.Node, error) {
     }
 
     return fuseDirent{fileInfo, this.driver, this.user}, nil;
-}
-
-// fuseDirent will act as both nodes and handles.
-// Implemented interfaces:
-//  - fs.Node
-//  - fs.NodeStringLookuper
-//  - fs.HandleReadDirAller
-//  - fs.HandleReadAller
-//  - fs.HandleReader
-//  - fs.HandleFlusher
-type fuseDirent struct {
-    dirent *dirent.Dirent
-    driver *driver.Driver
-    user *user.User
-}
-
-func (this fuseDirent) Attr(ctx context.Context, attr *fuse.Attr) error {
-    attr.Inode = 0;  // Dynamic.
-    attr.Size = this.dirent.Size;
-    attr.Blocks = util.CeilUint64(float64(this.dirent.Size) / FUSE_BLOCKSIZE);
-    attr.Atime = time.Unix(this.dirent.AccessTimestamp, 0);
-    attr.Mtime = time.Unix(this.dirent.ModTimestamp, 0);
-    attr.Ctime = time.Unix(this.dirent.CreateTimestamp, 0);
-    attr.Crtime = time.Unix(this.dirent.CreateTimestamp, 0);
-    attr.Nlink = 1;
-    attr.Uid = uint32(this.dirent.Owner);
-    attr.Gid = 0;  // Group permissions are more of an ACL.
-    // attr.Rdev
-    // attr.Flags
-    attr.BlockSize = cipherio.IO_BLOCK_SIZE;
-
-    if (this.dirent.IsFile) {
-        attr.Mode = 0555;
-    } else {
-        attr.Mode = os.ModeDir | 0555;
-    }
-
-    return nil;
-}
-
-func (this fuseDirent) Lookup(ctx context.Context, name string) (fs.Node, error) {
-    if (this.dirent.IsFile) {
-        return nil, fuse.ENOENT;
-    }
-
-    // Get the children for this dir.
-    entries, err := this.driver.List(this.user.Id, this.dirent.Id);
-    if (err != nil) {
-        return nil, errors.Wrap(err, "Failed to list directory: " + string(this.dirent.Id));
-    }
-
-    for _, entry := range(entries) {
-        if (entry.Name != name) {
-            continue;
-        }
-
-        return fuseDirent{entry, this.driver, this.user}, nil;
-    }
-
-    return nil, fuse.ENOENT;
-}
-
-func (this fuseDirent) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-    if (this.dirent.IsFile) {
-        return nil, fuse.ENOENT;
-    }
-
-    // Get the children for this dir.
-    entries, err := this.driver.List(this.user.Id, this.dirent.Id);
-    if (err != nil) {
-        return nil, errors.Wrap(err, "Failed to list directory: " + string(this.dirent.Id));
-    }
-
-    var rtn []fuse.Dirent = make([]fuse.Dirent, 0, len(entries));
-
-    for _, entry := range(entries) {
-        var direntType fuse.DirentType = fuse.DT_Dir;
-        if (entry.IsFile) {
-            direntType = fuse.DT_File;
-        }
-
-        var fuseDirent fuse.Dirent = fuse.Dirent{
-            Inode: 0,
-            Type: direntType,
-            Name: entry.Name,
-        };
-
-        rtn = append(rtn, fuseDirent);
-    }
-
-    return rtn, nil;
-}
-
-func (this fuseDirent) ReadAll(ctx context.Context) ([]byte, error) {
-    if (!this.dirent.IsFile) {
-        return nil, fuse.Errno(syscall.EISDIR);
-    }
-
-    var buffer []byte = make([]byte, this.dirent.Size);
-
-    reader, err := this.driver.Read(this.user.Id, this.dirent.Id);
-    if (err != nil) {
-        return nil, errors.Wrap(err, "Failed to open fs file for reading: " + string(this.dirent.Id));
-    }
-    defer reader.Close();
-
-    readSize, err := reader.Read(buffer);
-    if (err != nil && err != io.EOF) {
-        return nil, errors.Wrap(err, "Failed to read fs file: " + string(this.dirent.Id));
-    }
-
-    if (uint64(readSize) != this.dirent.Size) {
-        return nil, errors.New(fmt.Sprintf("Short read on '%s'. Expected %d, got %d.", this.dirent.Id, this.dirent.Size, readSize));
-    }
-
-    return buffer, nil;
-}
-
-func (this fuseDirent) Read(ctx context.Context, request *fuse.ReadRequest, response *fuse.ReadResponse) error {
-    if (!this.dirent.IsFile) {
-        return fuse.Errno(syscall.EISDIR);
-    }
-
-    // Ignore all the flags/locks, and just read the contents.
-    response.Data = make([]byte, request.Size);
-
-    reader, err := this.driver.Read(this.user.Id, this.dirent.Id);
-    if (err != nil) {
-        return errors.Wrap(err, "Failed to open fs file for reading: " + string(this.dirent.Id));
-    }
-    defer reader.Close();
-
-    _, err = reader.Seek(request.Offset, io.SeekStart);
-    if (err != nil) {
-        return errors.Wrap(err, "Failed to seek for reading: " + string(this.dirent.Id));
-    }
-
-    readSize, err := reader.Read(response.Data);
-    if (err != nil && err != io.EOF) {
-        return errors.Wrap(err, "Failed to read fs file: " + string(this.dirent.Id));
-    }
-
-    if (readSize != request.Size) {
-        return errors.New(fmt.Sprintf("Short read on '%s'. Expected %d, got %d.", this.dirent.Id, request.Size, readSize));
-    }
-
-    return nil
-}
-
-func (this fuseDirent) Flush(ctx context.Context, req *fuse.FlushRequest) error {
-    // No implementation for Flush is necessary.
-    // We won't sync the cache every flush, since that would be pretty expensive.
-    return nil;
 }
