@@ -6,9 +6,12 @@ package main
 // Implemented node interfaces:
 //  - fs.Node
 //  - fs.NodeAccesser
+//  - fs.NodeCreater
+//  - fs.NodeFsyncer
 //  - fs.NodeStringLookuper
 
 import (
+    "bytes"
     "os"
     "time"
 
@@ -18,6 +21,7 @@ import (
     "golang.org/x/net/context"
 
     "github.com/eriq-augustine/elfs/cipherio"
+    "github.com/eriq-augustine/elfs/group"
     "github.com/eriq-augustine/elfs/util"
 )
 
@@ -90,6 +94,30 @@ func (this fuseDirent) Attr(ctx context.Context, attr *fuse.Attr) error {
     }
     attr.Mode = mode;
 
+    return nil;
+}
+
+// Create is only for files.
+func (this fuseDirent) Create(ctx context.Context, request *fuse.CreateRequest, response *fuse.CreateResponse) (fs.Node, fs.Handle, error) {
+    // We will just ignore the flags, mode, and umask.
+    // Since all our operations are complete, we will just write an empty file.
+
+    var data []byte = make([]byte, 0);
+    var groupPermissions map[group.Id]group.Permission = make(map[group.Id]group.Permission);
+
+    fileInfo, err := this.driver.Put(this.user.Id, request.Name, bytes.NewReader(data), groupPermissions, this.dirent.Id);
+    if (err != nil) {
+        return nil, nil, errors.Wrap(err, "Unable to create file: " + request.Name);
+    }
+
+    var entry fuseDirent = fuseDirent{fileInfo, this.driver, this.user};
+
+    return entry, entry, nil;
+}
+
+func (this fuseDirent) Fsync(ctx context.Context, request *fuse.FsyncRequest) error {
+    // We don't need to do anything here.
+    // We already sync to the cache on all writes.
     return nil;
 }
 

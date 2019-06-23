@@ -658,7 +658,7 @@ func importFileInternal(fsDriver *driver.Driver, activeUser *user.User, path str
    }
    defer fileReader.Close();
 
-   err = fsDriver.Put(activeUser.Id, filepath.Base(path), fileReader, map[group.Id]group.Permission{}, parent);
+   _, err = fsDriver.Put(activeUser.Id, filepath.Base(path), fileReader, map[group.Id]group.Permission{}, parent);
    if (err != nil) {
       return errors.Wrap(err, path);
    }

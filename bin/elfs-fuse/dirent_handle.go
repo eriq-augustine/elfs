@@ -128,7 +128,7 @@ func (this fuseDirent) Write(ctx context.Context, request *fuse.WriteRequest, re
     data = data[:request.Offset];
     data = append(data, request.Data...);
 
-    err = this.driver.Put(this.user.Id, this.dirent.Name, bytes.NewReader(data), this.dirent.GroupPermissions, this.dirent.Parent);
+    _, err = this.driver.Put(this.user.Id, this.dirent.Name, bytes.NewReader(data), this.dirent.GroupPermissions, this.dirent.Parent);
     if (err != nil) {
         return errors.Wrap(err, "Failed to write data for write: " + string(this.dirent.Id));
     }
