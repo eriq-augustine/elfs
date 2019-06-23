@@ -60,3 +60,22 @@ func (this *Dirent) CanRead(userId user.Id, groups map[group.Id]*group.Group) bo
 
    return false;
 }
+
+// Get permissions as a standard UNIX bitset.
+// For files, execute is disallowed across the board.
+// For directories, execute is allowed of read is allowed.
+// There is no concept of "other" in ELFS.
+func (this *Dirent) UnixPermissions() uint32 {
+    var permissions uint32 = 0000;
+
+    // Owner can alwasy RW.
+    permissions |= 0600;
+    if (!this.IsFile) {
+        permissions |= 0100;
+    }
+
+    // TODO(eriq): For group permissions, we could do an intersection of the permissions.
+    // Or maybe compute based off a context user's groups.
+
+    return permissions;
+}

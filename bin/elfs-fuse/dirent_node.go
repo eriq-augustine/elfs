@@ -5,6 +5,7 @@ package main
 // This file contains implementations of node methods.
 // Implemented node interfaces:
 //  - fs.Node
+//  - fs.NodeAccesser
 //  - fs.NodeStringLookuper
 
 import (
@@ -22,7 +23,51 @@ import (
 
 const (
     FUSE_BLOCKSIZE = 512
+    ACCESS_F_OK = 0
+    ACCESS_R_OK = 4
+    ACCESS_W_OK = 2
+    ACCESS_X_OK = 1
 )
+
+func (this fuseDirent) Access(ctx context.Context, request *fuse.AccessRequest) error {
+    // The mask will either be ACCESS_F_OK, or a mask of the other ACCESS_[RWX] bits.
+    // See the access(2) man page.
+
+    if (request.Mask == ACCESS_F_OK) {
+        // Because of how the other FUSE API methods are implemented,
+        // I do not know how the file could not exist.
+        // However, we can just check with the driver again.
+        info, _ := this.driver.GetDirent(this.user.Id, this.dirent.Id);
+        if (info == nil) {
+            return fuse.EPERM;
+        }
+
+        return nil;
+    }
+
+    if (request.Mask & ACCESS_R_OK != 0) {
+        if (!this.dirent.CanRead(this.user.Id, this.driver.GetGroups())) {
+            return fuse.EPERM;
+        }
+    }
+
+    if (request.Mask & ACCESS_W_OK != 0) {
+        if (!this.dirent.CanWrite(this.user.Id, this.driver.GetGroups())) {
+            return fuse.EPERM;
+        }
+    }
+
+    if (request.Mask & ACCESS_X_OK != 0) {
+        // We don't allow execure on elfs.
+        // However, `man 3p access` indicates that we can be generous with execute.
+        // So, just check for read instead.
+        if (!this.dirent.CanRead(this.user.Id, this.driver.GetGroups())) {
+            return fuse.EPERM;
+        }
+    }
+
+    return nil;
+}
 
 func (this fuseDirent) Attr(ctx context.Context, attr *fuse.Attr) error {
     attr.Inode = 0;  // Dynamic.
@@ -39,11 +84,11 @@ func (this fuseDirent) Attr(ctx context.Context, attr *fuse.Attr) error {
     // attr.Flags
     attr.BlockSize = cipherio.IO_BLOCK_SIZE;
 
-    if (this.dirent.IsFile) {
-        attr.Mode = 0555;
-    } else {
-        attr.Mode = os.ModeDir | 0555;
+    var mode os.FileMode = os.FileMode(this.dirent.UnixPermissions());
+    if (!this.dirent.IsFile) {
+        mode |= os.ModeDir;
     }
+    attr.Mode = mode;
 
     return nil;
 }
