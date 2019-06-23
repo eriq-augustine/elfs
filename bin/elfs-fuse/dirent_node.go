@@ -9,6 +9,7 @@ package main
 //  - fs.NodeCreater
 //  - fs.NodeFsyncer
 //  - fs.NodeMkdirer
+//  - fs.NodeRemover
 //  - fs.NodeStringLookuper
 
 import (
@@ -22,6 +23,7 @@ import (
     "golang.org/x/net/context"
 
     "github.com/eriq-augustine/elfs/cipherio"
+    "github.com/eriq-augustine/elfs/dirent"
     "github.com/eriq-augustine/elfs/group"
     "github.com/eriq-augustine/elfs/util"
 )
@@ -132,21 +134,12 @@ func (this fuseDirent) Lookup(ctx context.Context, name string) (fs.Node, error)
         return nil, fuse.ENOENT;
     }
 
-    // Get the children for this dir.
-    entries, err := this.driver.List(this.user.Id, this.dirent.Id);
-    if (err != nil) {
-        return nil, errors.Wrap(err, "Failed to list directory: " + string(this.dirent.Id));
+    var child *dirent.Dirent = this.driver.FetchChildByName(name, this.dirent.Id);
+    if (child == nil) {
+        return nil, fuse.ENOENT;
     }
 
-    for _, entry := range(entries) {
-        if (entry.Name != name) {
-            continue;
-        }
-
-        return fuseDirent{entry, this.driver, this.user}, nil;
-    }
-
-    return nil, fuse.ENOENT;
+    return fuseDirent{child, this.driver, this.user}, nil;
 }
 
 func (this fuseDirent) Mkdir(ctx context.Context, request *fuse.MkdirRequest) (fs.Node, error) {
@@ -167,4 +160,20 @@ func (this fuseDirent) Mkdir(ctx context.Context, request *fuse.MkdirRequest) (f
     var entry fuseDirent = fuseDirent{newDir, this.driver, this.user};
 
     return entry, nil;
+}
+
+func (this fuseDirent) Remove(ctx context.Context, request *fuse.RemoveRequest) error {
+    var child *dirent.Dirent = this.driver.FetchChildByName(request.Name, this.dirent.Id);
+    if (child == nil) {
+        return fuse.ENOENT;
+    }
+
+    var err error = nil;
+    if (child.IsFile) {
+        err = this.driver.RemoveFile(this.user.Id, child.Id);
+    } else {
+        err = this.driver.RemoveDir(this.user.Id, child.Id);
+    }
+
+    return errors.WithStack(err);
 }

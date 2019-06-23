@@ -149,7 +149,7 @@ func (this *Driver) Put(
    // Consider all parts of this operation happening at this timestamp.
    var operationTimestamp int64 = time.Now().Unix();
 
-   var fileInfo *dirent.Dirent = this.fetchByName(name, parentDir);
+   var fileInfo *dirent.Dirent = this.FetchChildByName(name, parentDir);
    var newFile bool;
 
    // Create or update?
@@ -300,7 +300,7 @@ func (this *Driver) Rename(user user.Id, target dirent.Id, newName string) error
    return nil;
 }
 
-func (this *Driver) fetchByName(name string, parent dirent.Id) *dirent.Dirent {
+func (this *Driver) FetchChildByName(name string, parent dirent.Id) *dirent.Dirent {
    for _, child := range(this.dirs[parent]) {
       if (child.Name == name) {
          return child;
