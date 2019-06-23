@@ -19,6 +19,7 @@ import (
    "github.com/eriq-augustine/elfs/cipherio"
    "github.com/eriq-augustine/elfs/connector"
    "github.com/eriq-augustine/elfs/dirent"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 const (
@@ -90,15 +91,15 @@ func (this *S3Connector) PrepareStorage() error {
    return nil;
 }
 
-func (this *S3Connector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (cipherio.ReadSeekCloser, error) {
+func (this *S3Connector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (util.ReadSeekCloser, error) {
    return this.getReader(string(fileInfo.Id), blockCipher, fileInfo.IV);
 }
 
-func (this *S3Connector) GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (cipherio.ReadSeekCloser, error) {
+func (this *S3Connector) GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (util.ReadSeekCloser, error) {
    return this.getReader(metadataId, blockCipher, iv);
 }
 
-func (this *S3Connector) getReader(id string, blockCipher cipher.Block, iv []byte) (cipherio.ReadSeekCloser, error) {
+func (this *S3Connector) getReader(id string, blockCipher cipher.Block, iv []byte) (util.ReadSeekCloser, error) {
    ciphertextSize, err := GetSize(this.bucket, id, this.s3Client);
    if (err != nil) {
       return nil, errors.WithStack(err);

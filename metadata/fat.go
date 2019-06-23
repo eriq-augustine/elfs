@@ -12,13 +12,14 @@ import (
 
    "github.com/eriq-augustine/elfs/cipherio"
    "github.com/eriq-augustine/elfs/dirent"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 // Read a full fat into memory and return the version of
 // of the version read.
 // This function will not clear the given fat.
 // However, the reader WILL be closed.
-func ReadFat(fat map[dirent.Id]*dirent.Dirent, reader cipherio.ReadSeekCloser) (int, error) {
+func ReadFat(fat map[dirent.Id]*dirent.Dirent, reader util.ReadSeekCloser) (int, error) {
    version, err := ReadFatWithScanner(fat, bufio.NewScanner(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);

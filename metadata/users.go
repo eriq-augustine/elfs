@@ -12,12 +12,13 @@ import (
 
    "github.com/eriq-augustine/elfs/cipherio"
    "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 // Read all users into memory.
 // This function will not clear the given users.
 // However, the reader WILL be closed.
-func ReadUsers(users map[user.Id]*user.User, reader cipherio.ReadSeekCloser) (int, error) {
+func ReadUsers(users map[user.Id]*user.User, reader util.ReadSeekCloser) (int, error) {
    version, err := ReadUsersWithScanner(users, bufio.NewScanner(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);

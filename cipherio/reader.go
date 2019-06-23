@@ -14,12 +14,6 @@ import (
    "github.com/eriq-augustine/elfs/util"
 )
 
-type ReadSeekCloser interface {
-   io.Closer
-   io.Reader
-   io.Seeker
-}
-
 // A ReadSeekCloser that will read an encrypted file, decrypt them, and return the cleartext
 // all in chunks of size IO_BLOCK_SIZE.
 // Note that the cleartext will be in chunks of IO_BLOCK_SIZE,
@@ -39,7 +33,7 @@ type CipherReader struct {
    iv []byte
    originalIV []byte
 
-   reader ReadSeekCloser
+   reader util.ReadSeekCloser
 
    // These are NOT offsets into the respective buffers,
    // there are absolute offsets into the cipher/clear text files.
@@ -57,9 +51,9 @@ type CipherReader struct {
 }
 
 // Caller gives up control of the reader.
-func NewCipherReader(reader ReadSeekCloser,
+func NewCipherReader(reader util.ReadSeekCloser,
       blockCipher cipher.Block, rawIV []byte,
-      ciphertextSize int64) (ReadSeekCloser, error) {
+      ciphertextSize int64) (util.ReadSeekCloser, error) {
    gcm, err := cipher.NewGCM(blockCipher);
    if err != nil {
       return nil, errors.WithStack(err);

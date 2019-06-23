@@ -12,12 +12,13 @@ import (
 
    "github.com/eriq-augustine/elfs/cipherio"
    "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 // Read all groups into memory.
 // This function will not clear the given groups.
 // However, the reader WILL be closed.
-func ReadGroups(groups map[group.Id]*group.Group, reader cipherio.ReadSeekCloser) (int, error) {
+func ReadGroups(groups map[group.Id]*group.Group, reader util.ReadSeekCloser) (int, error) {
    version, err := ReadGroupsWithScanner(groups, bufio.NewScanner(reader));
    if (err != nil) {
       return 0, errors.WithStack(err);

@@ -16,6 +16,7 @@ import (
    "github.com/eriq-augustine/elfs/cipherio"
    "github.com/eriq-augustine/elfs/connector"
    "github.com/eriq-augustine/elfs/dirent"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 const (
@@ -75,7 +76,7 @@ func (this *LocalConnector) PrepareStorage() error {
    return os.MkdirAll(this.path, 0700);
 }
 
-func (this *LocalConnector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (cipherio.ReadSeekCloser, error) {
+func (this *LocalConnector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher cipher.Block) (util.ReadSeekCloser, error) {
    var path string = this.getDiskPath(fileInfo);
 
    file, err := os.Open(path);
@@ -91,7 +92,7 @@ func (this *LocalConnector) GetCipherReader(fileInfo *dirent.Dirent, blockCipher
    return cipherio.NewCipherReader(file, blockCipher, fileInfo.IV, fileStat.Size());
 }
 
-func (this *LocalConnector) GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (cipherio.ReadSeekCloser, error) {
+func (this *LocalConnector) GetMetadataReader(metadataId string, blockCipher cipher.Block, iv []byte) (util.ReadSeekCloser, error) {
    var path string = this.getMetadataPath(metadataId);
 
    file, err := os.Open(path);

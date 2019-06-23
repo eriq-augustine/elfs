@@ -10,7 +10,7 @@ import (
 
     "bazil.org/fuse"
     "bazil.org/fuse/fs"
-    // "bazil.org/fuse/fs/fstestutil"
+    "bazil.org/fuse/fs/fstestutil"
     "github.com/pkg/errors"
     "golang.org/x/net/context"
 
@@ -36,6 +36,9 @@ func main() {
         fmt.Printf("Failed to authenticate user: %+v\n", err);
         os.Exit(10);
     }
+
+    // TEST
+    fstestutil.DebugByDefault();
 
     // Mount.
     connection, err := mount(args.Mountpoint);
@@ -136,11 +139,14 @@ func (this fuseFS) Root() (fs.Node, error) {
     return fuseDirent{fileInfo, this.driver, this.user}, nil;
 }
 
+// fuseDirent will act as both nodes and handles.
 // Implemented interfaces:
 //  - fs.Node
 //  - fs.NodeStringLookuper
 //  - fs.HandleReadDirAller
 //  - fs.HandleReadAller
+//  - fs.HandleReader
+//  - fs.HandleFlusher
 type fuseDirent struct {
     dirent *dirent.Dirent
     driver *driver.Driver
@@ -247,4 +253,41 @@ func (this fuseDirent) ReadAll(ctx context.Context) ([]byte, error) {
     }
 
     return buffer, nil;
+}
+
+func (this fuseDirent) Read(ctx context.Context, request *fuse.ReadRequest, response *fuse.ReadResponse) error {
+    if (!this.dirent.IsFile) {
+        return fuse.Errno(syscall.EISDIR);
+    }
+
+    // Ignore all the flags/locks, and just read the contents.
+    response.Data = make([]byte, request.Size);
+
+    reader, err := this.driver.Read(this.user.Id, this.dirent.Id);
+    if (err != nil) {
+        return errors.Wrap(err, "Failed to open fs file for reading: " + string(this.dirent.Id));
+    }
+    defer reader.Close();
+
+    _, err = reader.Seek(request.Offset, io.SeekStart);
+    if (err != nil) {
+        return errors.Wrap(err, "Failed to seek for reading: " + string(this.dirent.Id));
+    }
+
+    readSize, err := reader.Read(response.Data);
+    if (err != nil && err != io.EOF) {
+        return errors.Wrap(err, "Failed to read fs file: " + string(this.dirent.Id));
+    }
+
+    if (readSize != request.Size) {
+        return errors.New(fmt.Sprintf("Short read on '%s'. Expected %d, got %d.", this.dirent.Id, request.Size, readSize));
+    }
+
+    return nil
+}
+
+func (this fuseDirent) Flush(ctx context.Context, req *fuse.FlushRequest) error {
+    // No implementation for Flush is necessary.
+    // We won't sync the cache every flush, since that would be pretty expensive.
+    return nil;
 }

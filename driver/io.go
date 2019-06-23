@@ -12,6 +12,7 @@ import (
    "github.com/eriq-augustine/elfs/dirent"
    "github.com/eriq-augustine/elfs/group"
    "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/util"
 )
 
 func (this *Driver) GetDirent(user user.Id, id dirent.Id) (*dirent.Dirent, error) {
@@ -209,7 +210,7 @@ func (this *Driver) Put(
    return nil;
 }
 
-func (this *Driver) Read(user user.Id, file dirent.Id) (io.ReadCloser, error) {
+func (this *Driver) Read(user user.Id, file dirent.Id) (util.ReadSeekCloser, error) {
    fileInfo, ok := this.fat[file];
    if (!ok) {
       return nil, NewDoesntExistError(string(file));
