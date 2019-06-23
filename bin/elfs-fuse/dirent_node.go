@@ -8,6 +8,7 @@ package main
 //  - fs.NodeAccesser
 //  - fs.NodeCreater
 //  - fs.NodeFsyncer
+//  - fs.NodeMkdirer
 //  - fs.NodeStringLookuper
 
 import (
@@ -105,12 +106,17 @@ func (this fuseDirent) Create(ctx context.Context, request *fuse.CreateRequest, 
     var data []byte = make([]byte, 0);
     var groupPermissions map[group.Id]group.Permission = make(map[group.Id]group.Permission);
 
-    fileInfo, err := this.driver.Put(this.user.Id, request.Name, bytes.NewReader(data), groupPermissions, this.dirent.Id);
+    newFileId, err := this.driver.Put(this.user.Id, request.Name, bytes.NewReader(data), groupPermissions, this.dirent.Id);
     if (err != nil) {
         return nil, nil, errors.Wrap(err, "Unable to create file: " + request.Name);
     }
 
-    var entry fuseDirent = fuseDirent{fileInfo, this.driver, this.user};
+    newFile, err := this.driver.GetDirent(this.user.Id, newFileId);
+    if (err != nil) {
+        return nil, nil, errors.Wrap(err, "Failed to fetch dirent: " + string(newFileId));
+    }
+
+    var entry fuseDirent = fuseDirent{newFile, this.driver, this.user};
 
     return entry, entry, nil;
 }
@@ -141,4 +147,24 @@ func (this fuseDirent) Lookup(ctx context.Context, name string) (fs.Node, error)
     }
 
     return nil, fuse.ENOENT;
+}
+
+func (this fuseDirent) Mkdir(ctx context.Context, request *fuse.MkdirRequest) (fs.Node, error) {
+    // Ignore the mode and umask.
+
+    var groupPermissions map[group.Id]group.Permission = make(map[group.Id]group.Permission);
+
+    newDirId, err := this.driver.MakeDir(this.user.Id, request.Name, this.dirent.Id, groupPermissions);
+    if (err != nil) {
+        return nil, errors.Wrap(err, "Unable to create dir: " + request.Name);
+    }
+
+    newDir, err := this.driver.GetDirent(this.user.Id, newDirId);
+    if (err != nil) {
+        return nil, errors.Wrap(err, "Failed to fetch dirent: " + string(newDirId));
+    }
+
+    var entry fuseDirent = fuseDirent{newDir, this.driver, this.user};
+
+    return entry, nil;
 }

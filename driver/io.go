@@ -132,18 +132,18 @@ func (this *Driver) Move(user user.Id, target dirent.Id, newParent dirent.Id) er
 func (this *Driver) Put(
       user user.Id,
       name string, clearbytes io.Reader,
-      groupPermissions map[group.Id]group.Permission, parentDir dirent.Id) (*dirent.Dirent, error) {
+      groupPermissions map[group.Id]group.Permission, parentDir dirent.Id) (dirent.Id, error) {
    if (name == "") {
-      return nil, NewIllegalOperationError("Cannot put a file with no name.");
+      return dirent.EMPTY_ID, NewIllegalOperationError("Cannot put a file with no name.");
    }
 
    if (groupPermissions == nil) {
-      return nil, errors.WithStack(NewIllegalOperationError("Put requires a non-nil group permissions. Empty is valid."));
+      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Put requires a non-nil group permissions. Empty is valid."));
    }
 
    _, ok := this.fat[parentDir];
    if (!ok) {
-      return nil, errors.WithStack(NewIllegalOperationError("Put requires an existing parent directory."));
+      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Put requires an existing parent directory."));
    }
 
    // Consider all parts of this operation happening at this timestamp.
@@ -159,7 +159,7 @@ func (this *Driver) Put(
 
       err := this.checkCreatePermissions(user, parentDir);
       if (err != nil) {
-         return nil, errors.WithStack(err);
+         return dirent.EMPTY_ID, errors.WithStack(err);
       }
 
       fileInfo = dirent.NewFile(this.getNewDirentId(), user, name, groupPermissions, parentDir, operationTimestamp);
@@ -169,21 +169,21 @@ func (this *Driver) Put(
 
       err := this.checkWritePermissions(user, fileInfo);
       if (err != nil) {
-         return nil, errors.WithStack(err);
+         return dirent.EMPTY_ID, errors.WithStack(err);
       }
 
       if (!fileInfo.IsFile) {
-         return nil, errors.WithStack(NewIllegalOperationError("Put cannot write a directory, do you mean to MkDir()?"));
+         return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Put cannot write a directory, do you mean to MakeDir()?"));
       }
 
       if (parentDir != fileInfo.Parent) {
-         return nil, NewIllegalOperationError("Put cannot change a file's directory, use Move() instead.");
+         return dirent.EMPTY_ID, NewIllegalOperationError("Put cannot change a file's directory, use Move() instead.");
       }
    }
 
    fileSize, md5String, err := connector.Write(this.connector, fileInfo, this.blockCipher, clearbytes);
    if (err != nil) {
-      return nil, err;
+      return dirent.EMPTY_ID, err;
    }
 
    // Update metadata.
@@ -207,7 +207,7 @@ func (this *Driver) Put(
 
    this.cache.CacheDirentPut(fileInfo);
 
-   return fileInfo, nil;
+   return fileInfo.Id, nil;
 }
 
 func (this *Driver) Read(user user.Id, file dirent.Id) (util.ReadSeekCloser, error) {
