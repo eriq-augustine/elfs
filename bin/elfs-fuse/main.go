@@ -10,6 +10,7 @@ import (
     "bazil.org/fuse/fs"
     "bazil.org/fuse/fs/fstestutil"
     "github.com/pkg/errors"
+    "github.com/spf13/pflag"
 
     "github.com/eriq-augustine/elfs/dirent"
     "github.com/eriq-augustine/elfs/driver"
@@ -22,6 +23,11 @@ const (
 )
 
 func main() {
+    // Add additional command-line options.
+    var mountpoint *string = pflag.StringP("mountpoint", "m", DEFAULT_MOUNTPOINT, "The mountpoint of the filesystem.");
+    var readonly *bool = pflag.BoolP("readonly", "o", false, "Mount the filesystem as readonly.");
+    var debug *bool = pflag.BoolP("debug", "d", false, "Use FUSE debugging.");
+
     fsDriver, args := driver.GetDriverFromArgs();
     defer fsDriver.Close();
 
@@ -32,11 +38,12 @@ func main() {
         os.Exit(10);
     }
 
-    // TEST
-    fstestutil.DebugByDefault();
+    if (*debug) {
+        fstestutil.DebugByDefault();
+    }
 
     // Mount.
-    connection, err := mount(args.Mountpoint);
+    connection, err := mount(*mountpoint, *readonly);
     if err != nil {
         fmt.Printf("Failed to mount filesystem: %+v\n", err);
         os.Exit(11);
@@ -44,7 +51,7 @@ func main() {
 
     // Cleanup.
     defer connection.Close();
-    defer fuse.Unmount(args.Mountpoint);
+    defer fuse.Unmount(*mountpoint);
 
     // Try and gracefully handle SIGINT and SIGTERM.
     // Because of how fuse works, we will still need to unmount through umount/fusermount -u.
@@ -53,7 +60,7 @@ func main() {
     go func() {
         <-sigChan;
         connection.Close();
-        fuse.Unmount(args.Mountpoint);
+        fuse.Unmount(*mountpoint);
         os.Exit(0);
     }();
 
@@ -73,50 +80,48 @@ func main() {
     }
 }
 
-func mount(mountpoint string) (*fuse.Conn, error) {
+func mount(mountpoint string, readonly bool) (*fuse.Conn, error) {
     err := os.MkdirAll(mountpoint, 0700);
     if (err != nil) {
         return nil, err;
     }
 
-    return fuse.Mount(
-        mountpoint,
+    var mountOptions []fuse.MountOption = make([]fuse.MountOption, 0);
 
-        // Name of the filesystem.
-        fuse.FSName("elfs"),
-        // Main type is always "fuse".
-        fuse.Subtype("elfs"),
+    // Name of the filesystem.
+    mountOptions = append(mountOptions, fuse.FSName("elfs"));
 
-        // TODO(eriq): Flag.
-        // fuse.ReadOnly(),
+    // Main type is always "fuse".
+    mountOptions = append(mountOptions, fuse.Subtype("elfs"));
 
-        // Prefetch amount in bytes.
-        // fuse.MaxReadahead(TODO),
+    if (readonly) {
+        mountOptions = append(mountOptions, fuse.ReadOnly());
+    }
 
-        // TODO
-        // fuse.AsyncRead(),
-        // fuse.WritebackCache(),
-        // fuse.AllowNonEmptyMount(),
+    // TODO(eriq): Look into these options.
+    // mountOptions = append(mountOptions, fuse.MaxReadahead(ZZZ));
+    // mountOptions = append(mountOptions, fuse.AsyncRead());
+    // mountOptions = append(mountOptions, fuse.WritebackCache());
+    // mountOptions = append(mountOptions, fuse.AllowNonEmptyMount());
+    // mountOptions = append(mountOptions, fuse.AllowOther());
+    // mountOptions = append(mountOptions, fuse.AllowRoot());
+    // mountOptions = append(mountOptions, fuse.AllowSUID());
 
-        // Allow other users to access the filesystem.
-        // fuse.AllowOther(),
-        // Mutually exclusive with AllowOther.
-        // fuse.AllowRoot(),
+    // OSX Only.
 
-        // Allows set-user-identifier or set-group-identifier bits.
-        // fuse.AllowSUID(),
+    // Local vs network.
+    mountOptions = append(mountOptions, fuse.LocalVolume());
 
-        // OSX Only.
+    // Volume name shown in OSX finder.
+    mountOptions = append(mountOptions, fuse.VolumeName("ELFS"));
 
-        // Local vs network.
-        fuse.LocalVolume(),
-        // Volume name shown in OSX finder.
-        fuse.VolumeName("ELFS"),
-        // Disable extended attribute files (e.g. .DS_Store).
-        fuse.NoAppleDouble(),
-        // Disable extended attributes.
-        fuse.NoAppleXattr(),
-    );
+    // Disable extended attribute files (e.g. .DS_Store).
+    mountOptions = append(mountOptions, fuse.NoAppleDouble());
+
+    // Disable extended attributes.
+    mountOptions = append(mountOptions, fuse.NoAppleXattr());
+
+    return fuse.Mount(mountpoint, mountOptions...);
 }
 
 // Implemented interfaces:

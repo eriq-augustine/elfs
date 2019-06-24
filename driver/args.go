@@ -75,7 +75,6 @@ func parseArgs() (*Args, error) {
     var user *string = pflag.StringP("user", "u", "root", "User to login as");
     var pass *string = pflag.StringP("password", "w", "", "Password to use for login");
     var force *bool = pflag.BoolP("force", "f", false, "Force the filesystem to mount regardless of locks");
-    var mountpoint *string = pflag.StringP("mountpoint", "m", "", "The mountpoint of the filesystem (not used by all operations)");
 
     pflag.Parse();
 
@@ -119,7 +118,6 @@ func parseArgs() (*Args, error) {
         User: *user,
         Pass: *pass,
         Force: *force,
-        Mountpoint: *mountpoint,
     };
 
     return &rtn, nil;
@@ -137,5 +135,4 @@ type Args struct {
     User string
     Pass string
     Force bool
-    Mountpoint string
 }
