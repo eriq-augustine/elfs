@@ -5,11 +5,11 @@ package main
 import (
     "github.com/eriq-augustine/elfs/dirent"
     "github.com/eriq-augustine/elfs/driver"
-    "github.com/eriq-augustine/elfs/user"
+    "github.com/eriq-augustine/elfs/identity"
 )
 
 type fuseDirent struct {
     dirent *dirent.Dirent
     driver *driver.Driver
-    user *user.User
+    user *identity.User
 }

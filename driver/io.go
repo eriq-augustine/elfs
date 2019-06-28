@@ -3,355 +3,343 @@ package driver;
 // IO operations that specificially deal with single files.
 
 import (
-   "io"
-   "time"
+    "fmt"
+    "io"
+    "time"
 
-   "github.com/pkg/errors"
+    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/elfs/connector"
-   "github.com/eriq-augustine/elfs/dirent"
-   "github.com/eriq-augustine/elfs/group"
-   "github.com/eriq-augustine/elfs/user"
-   "github.com/eriq-augustine/elfs/util"
+    "github.com/eriq-augustine/elfs/connector"
+    "github.com/eriq-augustine/elfs/dirent"
+    "github.com/eriq-augustine/elfs/identity"
+    "github.com/eriq-augustine/elfs/util"
 )
 
-func (this *Driver) GetDirent(user user.Id, id dirent.Id) (*dirent.Dirent, error) {
-   info, ok := this.fat[id];
-   if (!ok) {
-      return nil, errors.WithStack(NewDoesntExistError(string(id)));
-   }
+func (this *Driver) GetDirent(userId identity.UserId, direntId dirent.Id) (*dirent.Dirent, error) {
+    direntInfo, _, err := this.getUserAndDirent(userId, direntId, true, false, false, false, false);
+    if (err != nil) {
+        return nil, errors.WithStack(err);
+    }
 
-   err := this.checkReadPermissions(user, info);
-   if (err != nil) {
-      return nil, errors.WithStack(err);
-   }
-
-   return info, nil;
+    return direntInfo, nil;
 }
 
-func (this *Driver) List(user user.Id, dir dirent.Id) ([]*dirent.Dirent, error) {
-   dirInfo, ok := this.fat[dir];
-   if (!ok) {
-      return nil, NewDoesntExistError(string(dir));
-   }
+func (this *Driver) List(userId identity.UserId, direntId dirent.Id) ([]*dirent.Dirent, error) {
+    direntInfo, _, err := this.getUserAndDirent(userId, direntId, true, false, true, false, true);
+    if (err != nil) {
+        return nil, errors.WithStack(err);
+    }
 
-   err := this.checkReadPermissions(user, dirInfo);
-   if (err != nil) {
-      return nil, err;
-   }
+    // Update metadata.
+    direntInfo.AccessTimestamp = time.Now().Unix();
+    direntInfo.AccessCount++;
+    this.cache.CacheDirentPut(direntInfo);
 
-   if (dirInfo.IsFile) {
-      return nil, NewIllegalOperationError("Cannot list a file, use Read() instead.");
-   }
-
-   // Update metadata.
-   dirInfo.AccessTimestamp = time.Now().Unix();
-   dirInfo.AccessCount++;
-   this.cache.CacheDirentPut(dirInfo);
-
-   return this.dirs[dir], nil;
+    return this.dirs[direntId], nil;
 }
 
-func (this *Driver) MakeDir(user user.Id, name string,
-      parent dirent.Id, permissions map[group.Id]group.Permission) (dirent.Id, error) {
-   if (name == "") {
-      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot make a dir with no name."));
-   }
+func (this *Driver) MakeDir(userId identity.UserId, name string, parentId dirent.Id) (dirent.Id, error) {
+    if (name == "") {
+        return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot make a dir with no name."));
+    }
 
-   if (permissions == nil) {
-      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("MakeDir requires a non-nil group permissions. Empty is valid."));
-   }
+    _, user, err := this.getUserAndDirent(userId, parentId, false, true, false, false, true);
+    if (err != nil) {
+        return dirent.EMPTY_ID, errors.WithStack(err);
+    }
 
-   _, ok := this.fat[parent];
-   if (!ok) {
-      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("MakeDir requires an existing parent directory."));
-   }
+    // Make sure this directory does not already exist.
+    for _, child := range(this.dirs[parentId]) {
+        if (child.Name == name) {
+            return child.Id, errors.WithStack(NewIllegalOperationError("Directory already exists: " + name));
+        }
+    }
 
-   err := this.checkCreatePermissions(user, parent);
-   if (err != nil) {
-      return dirent.EMPTY_ID, errors.WithStack(err);
-   }
+    var newDir *dirent.Dirent = dirent.NewDir(this.getNewDirentId(), name, parentId, userId, user.Usergroup, time.Now().Unix());
+    this.fat[newDir.Id] = newDir;
+    this.dirs[parentId] = append(this.dirs[parentId], newDir);
 
-   // Make sure this directory does not already exist.
-   for _, child := range(this.dirs[parent]) {
-      if (child.Name == name) {
-         return child.Id, errors.WithStack(NewIllegalOperationError("Directory already exists: " + name));
-      }
-   }
+    this.cache.CacheDirentPut(newDir);
 
-   var newDir *dirent.Dirent = dirent.NewDir(this.getNewDirentId(), user, name, permissions, parent, time.Now().Unix());
-   this.fat[newDir.Id] = newDir;
-   this.dirs[parent] = append(this.dirs[parent], newDir);
-
-   this.cache.CacheDirentPut(newDir);
-
-   return newDir.Id, nil;
+    return newDir.Id, nil;
 }
 
-func (this *Driver) Move(user user.Id, target dirent.Id, newParent dirent.Id) error {
-   // We need write permissions on the dirent and parent dir.
-   targetInfo, ok := this.fat[target];
-   if (!ok) {
-      return errors.WithStack(NewDoesntExistError(string(target)));
-   }
+func (this *Driver) Move(userId identity.UserId, targetId dirent.Id, newParentId dirent.Id) error {
+    targetInfo, _, err := this.getUserAndDirent(userId, targetId, false, true, false, false, false);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   newParentInfo, ok := this.fat[newParent];
-   if (!ok) {
-      return errors.WithStack(NewDoesntExistError(string(newParent)));
-   }
+    _, _, err = this.getUserAndDirent(userId, newParentId, false, true, false, false, true);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   err := this.checkWritePermissions(user, targetInfo);
-   if (err != nil) {
-      return errors.Wrap(err, string(target));
-   }
+    if (targetInfo.Parent == newParentId) {
+        return nil;
+    }
 
-   err = this.checkWritePermissions(user, newParentInfo);
-   if (err != nil) {
-      return errors.Wrap(err, string(newParent));
-   }
+    // Update dir structure: remove old reference, add new one.
+    dirent.RemoveChild(this.dirs, targetInfo);
+    this.dirs[newParentId] = append(this.dirs[newParentId], targetInfo);
 
-   if (newParentInfo.IsFile) {
-      return errors.WithStack(NewIllegalOperationError("Cannot move a dirent into a file, need a dir."));
-   }
+    // Update fat
+    targetInfo.Parent = newParentId;
+    this.cache.CacheDirentPut(targetInfo);
 
-   if (targetInfo.Parent == newParent) {
-      return nil;
-   }
-
-   // Update dir structure: remove old reference, add new one.
-   dirent.RemoveChild(this.dirs, targetInfo);
-   this.dirs[newParent] = append(this.dirs[newParent], targetInfo);
-
-   // Update fat
-   targetInfo.Parent = newParent;
-   this.cache.CacheDirentPut(targetInfo);
-
-   return nil;
+    return nil;
 }
 
 func (this *Driver) Put(
-      user user.Id,
-      name string, clearbytes io.Reader,
-      groupPermissions map[group.Id]group.Permission, parentDir dirent.Id) (dirent.Id, error) {
-   if (name == "") {
-      return dirent.EMPTY_ID, NewIllegalOperationError("Cannot put a file with no name.");
-   }
+        userId identity.UserId,
+        name string, clearbytes io.Reader,
+        parentId dirent.Id) (dirent.Id, error) {
+    if (name == "") {
+        return dirent.EMPTY_ID, NewIllegalOperationError("Cannot put a file with no name.");
+    }
 
-   if (groupPermissions == nil) {
-      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Put requires a non-nil group permissions. Empty is valid."));
-   }
+    parentInfo, user, err := this.getUserAndDirent(userId, parentId, false, false, false, false, false);
+    if (err != nil) {
+        return dirent.EMPTY_ID, errors.WithStack(err);
+    }
 
-   _, ok := this.fat[parentDir];
-   if (!ok) {
-      return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Put requires an existing parent directory."));
-   }
+    // Consider all parts of this operation happening at this timestamp.
+    var operationTimestamp int64 = time.Now().Unix();
 
-   // Consider all parts of this operation happening at this timestamp.
-   var operationTimestamp int64 = time.Now().Unix();
+    fileInfo, err := this.FetchChildByName(userId, parentId, name);
+    if (err != nil) {
+        return dirent.EMPTY_ID, errors.WithStack(err);
+    }
 
-   var fileInfo *dirent.Dirent = this.FetchChildByName(name, parentDir);
-   var newFile bool;
+    var newFile bool;
+    var permissions dirent.Permissions = dirent.EMPTY_PERMISSIONS;
 
-   // Create or update?
-   if (fileInfo == nil) {
-      // Create
-      newFile = true;
+    // Create or update?
+    if (fileInfo == nil) {
+        // Create
+        newFile = true;
+        permissions = dirent.DEFAULT_FILE_PERMISSIONS;
 
-      err := this.checkCreatePermissions(user, parentDir);
-      if (err != nil) {
-         return dirent.EMPTY_ID, errors.WithStack(err);
-      }
+        parentGroup, ok := this.groups[parentInfo.Group];
+        if (!ok) {
+            return dirent.EMPTY_ID, errors.Errorf("Unable to find the group (%d) for dirent (%s).", int(parentInfo.Group), string(parentId));
+        }
 
-      fileInfo = dirent.NewFile(this.getNewDirentId(), user, name, groupPermissions, parentDir, operationTimestamp);
-   } else {
-      // Update
-      newFile = false;
+        if (!parentInfo.CanWrite(user, parentGroup)) {
+            return dirent.EMPTY_ID, NewPermissionsError(fmt.Sprintf("User (%s) cannot write to the parent (%s).", string(userId), string(parentId)));
+        }
 
-      err := this.checkWritePermissions(user, fileInfo);
-      if (err != nil) {
-         return dirent.EMPTY_ID, errors.WithStack(err);
-      }
+        fileInfo = dirent.NewFile(this.getNewDirentId(), name, parentId, userId, user.Usergroup, operationTimestamp);
+    } else {
+        // Update
+        newFile = false;
+        permissions = fileInfo.Permissions;
 
-      if (!fileInfo.IsFile) {
-         return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Put cannot write a directory, do you mean to MakeDir()?"));
-      }
+        fileGroup, ok := this.groups[fileInfo.Group];
+        if (!ok) {
+            return dirent.EMPTY_ID, errors.Errorf("Unable to find the group (%d) for dirent (%s).", int(fileInfo.Group), string(fileInfo.Id));
+        }
 
-      if (parentDir != fileInfo.Parent) {
-         return dirent.EMPTY_ID, NewIllegalOperationError("Put cannot change a file's directory, use Move() instead.");
-      }
-   }
+        if (!fileInfo.CanWrite(user, fileGroup)) {
+            return dirent.EMPTY_ID, NewPermissionsError(fmt.Sprintf("User (%s) cannot write to the parent (%s).", string(userId), string(parentId)));
+        }
 
-   fileSize, md5String, err := connector.Write(this.connector, fileInfo, this.blockCipher, clearbytes);
-   if (err != nil) {
-      return dirent.EMPTY_ID, err;
-   }
+        if (!fileInfo.IsFile) {
+            return dirent.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Put cannot write a directory, do you mean to MakeDir()?"));
+        }
 
-   // Update metadata.
-   // Note that some of the data is available before the write,
-   // but we only want to update the metatdata if the write goes through.
-   fileInfo.ModTimestamp = operationTimestamp;
-   fileInfo.AccessTimestamp = operationTimestamp;
-   fileInfo.AccessCount++;
-   fileInfo.Size = fileSize;
-   fileInfo.Md5 = md5String;
-   fileInfo.Parent = parentDir;
-   fileInfo.GroupPermissions = groupPermissions;
+        if (parentId != fileInfo.Parent) {
+            return dirent.EMPTY_ID, NewIllegalOperationError("Put cannot change a file's directory, use Move() instead.");
+        }
+    }
 
-   // If this file is new, we need to make sure it is in that memory-FAT.
-   this.fat[fileInfo.Id] = fileInfo;
+    fileSize, md5String, err := connector.Write(this.connector, fileInfo, this.blockCipher, clearbytes);
+    if (err != nil) {
+        return dirent.EMPTY_ID, err;
+    }
 
-   // Update the directory tree if this is a new file.
-   if (newFile) {
-      this.dirs[parentDir] = append(this.dirs[parentDir], fileInfo);
-   }
+    // Update metadata.
+    // Note that some of the data is available before the write,
+    // but we only want to update the metatdata if the write goes through.
+    fileInfo.ModTimestamp = operationTimestamp;
+    fileInfo.AccessTimestamp = operationTimestamp;
+    fileInfo.AccessCount++;
+    fileInfo.Size = fileSize;
+    fileInfo.Md5 = md5String;
+    fileInfo.Parent = parentId;
+    fileInfo.Permissions = permissions;
 
-   this.cache.CacheDirentPut(fileInfo);
+    // If this file is new, we need to make sure it is in that memory-FAT.
+    this.fat[fileInfo.Id] = fileInfo;
 
-   return fileInfo.Id, nil;
+    // Update the directory tree if this is a new file.
+    if (newFile) {
+        this.dirs[parentId] = append(this.dirs[parentId], fileInfo);
+    }
+
+    this.cache.CacheDirentPut(fileInfo);
+
+    return fileInfo.Id, nil;
 }
 
-func (this *Driver) Read(user user.Id, file dirent.Id) (util.ReadSeekCloser, error) {
-   fileInfo, ok := this.fat[file];
-   if (!ok) {
-      return nil, NewDoesntExistError(string(file));
-   }
+func (this *Driver) Read(userId identity.UserId, fileId dirent.Id) (util.ReadSeekCloser, error) {
+    fileInfo, _, err := this.getUserAndDirent(userId, fileId, true, false, false, true, false);
+    if (err != nil) {
+        return nil, errors.WithStack(err);
+    }
 
-   err := this.checkReadPermissions(user, fileInfo);
-   if (err != nil) {
-      return nil, err;
-   }
+    reader, err := this.connector.GetCipherReader(fileInfo, this.blockCipher);
+    if (err != nil) {
+        return nil, err;
+    }
 
-   if (!fileInfo.IsFile) {
-      return nil, NewIllegalOperationError("Cannot read a dir, use List() instead.");
-   }
+    // Update metadata.
+    fileInfo.AccessTimestamp = time.Now().Unix();
+    fileInfo.AccessCount++;
+    this.cache.CacheDirentPut(fileInfo);
 
-   reader, err := this.connector.GetCipherReader(fileInfo, this.blockCipher);
-   if (err != nil) {
-      return nil, err;
-   }
-
-   // Update metadata.
-   fileInfo.AccessTimestamp = time.Now().Unix();
-   fileInfo.AccessCount++;
-   this.cache.CacheDirentPut(fileInfo);
-
-   return reader, nil;
+    return reader, nil;
 }
 
-func (this *Driver) RemoveDir(user user.Id, dir dirent.Id) error {
-   dirInfo, ok := this.fat[dir];
-   if (!ok) {
-      return NewDoesntExistError(string(dir));
-   }
+func (this *Driver) RemoveDir(userId identity.UserId, dirId dirent.Id) error {
+    dirInfo, user, err := this.getUserAndDirent(userId, dirId, false, true, false, false, true);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   err := this.checkRecusiveWritePermissions(user, dirInfo);
-   if (err != nil) {
-      return errors.WithStack(err);
-   }
+    group, ok := this.groups[dirInfo.Group];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Unable to find a dirent's group."));
+    }
 
-   if (dirInfo.IsFile) {
-      return NewIllegalOperationError("Cannot use RemoveDir() for a file, use RemoveFile() instead.");
-   }
+    err = this.checkRecusiveWritePermissions(user, group, dirInfo);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   return errors.WithStack(this.removeDir(dirInfo));
+    return errors.WithStack(this.removeDir(dirInfo));
 }
 
-func (this *Driver) RemoveFile(user user.Id, file dirent.Id) error {
-   fileInfo, ok := this.fat[file];
-   if (!ok) {
-      return NewDoesntExistError(string(file));
-   }
+func (this *Driver) RemoveFile(userId identity.UserId, fileId dirent.Id) error {
+    fileInfo, _, err := this.getUserAndDirent(userId, fileId, false, true, false, true, false);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   err := this.checkWritePermissions(user, fileInfo);
-   if (err != nil) {
-      return errors.WithStack(err);
-   }
-
-   if (!fileInfo.IsFile) {
-      return NewIllegalOperationError("Cannot use RemoveFile() for a dir, use RemoveDir() instead.");
-   }
-
-   return errors.WithStack(this.removeFile(fileInfo));
+    return errors.WithStack(this.removeFile(fileInfo));
 }
 
-func (this *Driver) Rename(user user.Id, target dirent.Id, newName string) error {
-   if (newName == "") {
-      return errors.WithStack(NewIllegalOperationError("Cannot put a file with no name."));
-   }
+func (this *Driver) Rename(userId identity.UserId, targetId dirent.Id, newName string) error {
+    if (newName == "") {
+        return errors.WithStack(NewIllegalOperationError("Cannot rename to an empty name."));
+    }
 
-   targetInfo, ok := this.fat[target];
-   if (!ok) {
-      return errors.WithStack(NewDoesntExistError(string(target)));
-   }
+    targetInfo, _, err := this.getUserAndDirent(userId, targetId, false, true, false, false, false);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   err := this.checkWritePermissions(user, targetInfo);
-   if (err != nil) {
-      return errors.Wrap(err, string(target));
-   }
+    if (newName == targetInfo.Name) {
+        return nil;
+    }
 
-   if (newName == targetInfo.Name) {
-      return nil;
-   }
+    // Update fat
+    targetInfo.Name = newName;
+    this.cache.CacheDirentPut(targetInfo);
 
-   // Update fat
-   targetInfo.Name = newName;
-   this.cache.CacheDirentPut(targetInfo);
-
-   return nil;
+    return nil;
 }
 
-func (this *Driver) FetchChildByName(name string, parent dirent.Id) *dirent.Dirent {
-   for _, child := range(this.dirs[parent]) {
-      if (child.Name == name) {
-         return child;
-      }
-   }
+func (this *Driver) ChangeOwner(userId identity.UserId, direntId dirent.Id, newOwnerId identity.UserId) error {
+    direntInfo, _, err := this.getUserAndDirent(userId, direntId, false, false, false, false, false);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   return nil;
+    if (userId != identity.ROOT_USER_ID || userId != direntInfo.Owner) {
+        return errors.WithStack(NewIllegalOperationError("Only owner/root can change owners."));
+    }
+
+    _, ok := this.users[newOwnerId];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Cannot change owner to a non-existant user."));
+    }
+
+    if (newOwnerId == direntInfo.Owner) {
+        return nil;
+    }
+
+    direntInfo.Owner = newOwnerId;
+    this.cache.CacheDirentPut(direntInfo);
+
+    return nil;
 }
 
-// Recursivley remove all dirents.
-// Go depth first (while hitting all files along the way).
-// Does not perform any permission checks.
-func (this *Driver) removeDir(dir *dirent.Dirent) error {
-   // First remove all children (recursively).
-   for _, child := range(this.dirs[dir.Id]) {
-      if (child.IsFile) {
-         err := this.removeFile(child);
-         if (err != nil) {
-            return errors.Wrap(err, string(dir.Id));
-         }
-      } else {
-         err := this.removeDir(child);
-         if (err != nil) {
-            return errors.Wrap(err, string(dir.Id));
-         }
-      }
-   }
+func (this *Driver) ChangeGroup(userId identity.UserId, direntId dirent.Id, newGroupId identity.GroupId) error {
+    direntInfo, _, err := this.getUserAndDirent(userId, direntId, false, false, false, false, false);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   // Remove from fat.
-   delete(this.fat, dir.Id);
+    if (userId != identity.ROOT_USER_ID || userId != direntInfo.Owner) {
+        return errors.WithStack(NewIllegalOperationError("Only owner/root can change groups."));
+    }
 
-   this.cache.CacheDirentDelete(dir);
+    _, ok := this.groups[newGroupId];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Cannot change group to a non-existant group."));
+    }
 
-   // Remove from the dir structure (as a child).
-   dirent.RemoveChild(this.dirs, dir);
+    if (newGroupId == direntInfo.Group) {
+        return nil;
+    }
 
-   // Remove the entry from dirs (as a parent).
-   delete(this.dirs, dir.Id);
+    direntInfo.Group = newGroupId;
+    this.cache.CacheDirentPut(direntInfo);
 
-   return nil;
+    return nil;
 }
 
-// Does not perform any permission checks.
-func (this *Driver) removeFile(file *dirent.Dirent) error {
-   // Remove from fat first, just incase disk remove fails.
-   delete(this.fat, file.Id);
+func (this *Driver) ChangePermissions(userId identity.UserId, direntId dirent.Id, perms dirent.Permissions) error {
+    direntInfo, _, err := this.getUserAndDirent(userId, direntId, false, false, false, false, false);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
 
-   this.cache.CacheDirentDelete(file);
+    if (userId != identity.ROOT_USER_ID || userId != direntInfo.Owner) {
+        return errors.WithStack(NewIllegalOperationError("Only owner/root can change permissions."));
+    }
 
-   // Remove from the dir structure.
-   dirent.RemoveChild(this.dirs, file);
+    if (perms == direntInfo.Permissions) {
+        return nil;
+    }
 
-   return errors.Wrap(this.connector.RemoveFile(file), string(file.Id));
+    direntInfo.Permissions = perms;
+    this.cache.CacheDirentPut(direntInfo);
+
+    return nil;
+}
+
+func (this *Driver) FetchChildByName(userId identity.UserId, parentId dirent.Id, name string) (*dirent.Dirent, error) {
+    _, user, err := this.getUserAndDirent(userId, parentId, true, false, true, false, true);
+    if (err != nil) {
+        return nil, errors.WithStack(err);
+    }
+
+    for _, child := range(this.dirs[parentId]) {
+        if (child.Name == name) {
+            childGroup, ok := this.groups[child.Group];
+            if (!ok) {
+                return nil, errors.Errorf("Unable to find the group (%d) for dirent (%s).", int(child.Group), string(child.Id));
+            }
+
+            if (!child.CanRead(user, childGroup)) {
+                return nil, nil;
+            }
+
+            return child, nil;
+        }
+    }
+
+    return nil, nil;
 }

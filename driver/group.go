@@ -3,178 +3,163 @@ package driver;
 // Operations dealing with groups in the filesystem.
 
 import (
-   "github.com/pkg/errors"
+    "github.com/pkg/errors"
 
-   "github.com/eriq-augustine/elfs/group"
-   "github.com/eriq-augustine/elfs/user"
+    "github.com/eriq-augustine/elfs/identity"
 )
 
-func (this *Driver) AddGroup(contextUser user.Id, name string) (group.Id, error) {
-   if (name == "") {
-      return group.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot create group with no name."));
-   }
-
-   for _, groupInfo := range(this.groups) {
-      if (groupInfo.Name == name) {
-         return group.EMPTY_ID, errors.WithStack(NewIllegalOperationError("Cannot create group with existing name: " + name));
-      }
-   }
-
-   newGroup := group.New(this.getNewGroupId(), name, contextUser);
-
-   this.groups[newGroup.Id] = newGroup;
-   this.cache.CacheGroupPut(newGroup);
-
-   return newGroup.Id, nil;
+func (this *Driver) GetGroups() map[identity.GroupId]*identity.Group {
+    return this.groups;
 }
 
-func (this *Driver) DeleteGroup(contextUser user.Id, groupId group.Id) error {
-   groupInfo, ok := this.groups[groupId];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Cannot remove unknown group."));
-   }
+func (this *Driver) AddGroup(contextUser identity.UserId, name string) (identity.GroupId, error) {
+    if (name == "") {
+        return identity.EMPTY_GROUP_ID, errors.WithStack(NewIllegalOperationError("Cannot create group with no name."));
+    }
 
-   if (groupInfo.Id == group.EVERYBODY_ID) {
-      return errors.WithStack(NewIllegalOperationError("Cannot remove everybody group"));
-   }
+    for _, groupInfo := range(this.groups) {
+        if (groupInfo.Name == name) {
+            return identity.EMPTY_GROUP_ID, errors.WithStack(NewIllegalOperationError("Cannot create group with existing name: " + name));
+        }
+    }
 
-   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
-   if (err != nil) {
-      return errors.WithStack(err);
-   }
+    newGroup := identity.NewGroup(this.getNewGroupId(), name, contextUser, false);
 
-   // Remove this group from the fat.
-   this.purgeGroup(groupId);
+    this.groups[newGroup.Id] = newGroup;
+    this.cache.CacheGroupPut(newGroup);
 
-   delete(this.groups, groupId);
-   this.cache.CacheGroupDelete(groupInfo);
-
-   return nil;
+    return newGroup.Id, nil;
 }
 
-func (this *Driver) DemoteUser(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
-   if (contextUser != user.ROOT_ID) {
-      return errors.WithStack(NewIllegalOperationError("Only root can demote users."));
-   }
+func (this *Driver) DeleteGroup(contextUser identity.UserId, groupId identity.GroupId) error {
+    groupInfo, ok := this.groups[groupId];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Cannot remove unknown group."));
+    }
 
-   groupInfo, ok := this.groups[groupId];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Cannot demote in unknown group."));
-   }
+    if (groupInfo.IsUsergroup) {
+        return errors.WithStack(NewIllegalOperationError("Cannot remove usergroup (must remove user instead)."));
+    }
 
-   _, ok = this.users[targetUser];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Demotion candidate does not exist."));
-   }
+    // Only the group's owner (or root) can remove it.
+    if (contextUser != groupInfo.Owner || contextUser != identity.ROOT_USER_ID) {
+        return errors.WithStack(NewIllegalOperationError("Only owner or root can remove a group."));
+    }
 
-   if (!groupInfo.Admins[targetUser]) {
-      return nil;
-   }
+    // Remove this group from the fat.
+    this.purgeGroup(groupId);
 
-   delete(groupInfo.Admins, targetUser);
-   this.cache.CacheGroupPut(groupInfo);
+    delete(this.groups, groupId);
+    this.cache.CacheGroupDelete(groupInfo);
 
-   return nil;
+    return nil;
 }
 
-func (this *Driver) GetGroups() map[group.Id]*group.Group {
-   return this.groups;
+func (this *Driver) JoinGroup(contextUser identity.UserId, targetUser identity.UserId, groupId identity.GroupId) error {
+    groupInfo, ok := this.groups[groupId];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Cannot join an unknown group."));
+    }
+
+    _, ok = this.users[targetUser];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Group join candidate does not exist."));
+    }
+
+    // Only the owner or root can add people to groups.
+    if (contextUser != groupInfo.Owner || contextUser != identity.ROOT_USER_ID) {
+        return errors.WithStack(NewIllegalOperationError("Only owner or root can add to a group."));
+    }
+
+    if (groupInfo.HasMember(targetUser)) {
+        return nil;
+    }
+
+    groupInfo.Members[targetUser] = true;
+    this.cache.CacheGroupPut(groupInfo);
+
+    return nil;
 }
 
-func (this *Driver) JoinGroup(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
-   groupInfo, ok := this.groups[groupId];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Cannot join an unknown group."));
-   }
+func (this *Driver) KickUser(contextUser identity.UserId, targetUser identity.UserId, groupId identity.GroupId) error {
+    groupInfo, ok := this.groups[groupId];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Cannot kick from an unknown group."));
+    }
 
-   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
-   if (err != nil) {
-      return errors.WithStack(err);
-   }
+    _, ok = this.users[targetUser];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Kick candidate does not exist."));
+    }
 
-   _, ok = this.users[targetUser];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Group join candidate does not exist."));
-   }
+    if (targetUser == groupInfo.Owner && groupInfo.IsUsergroup) {
+        return errors.WithStack(NewIllegalOperationError("Cannot kick the owner of a usergroup."));
+    }
 
-   if (groupInfo.Users[targetUser]) {
-      return nil;
-   }
+    // Only the owner or root can add people to groups.
+    if (contextUser != groupInfo.Owner || contextUser != identity.ROOT_USER_ID || contextUser == targetUser) {
+        return errors.WithStack(NewIllegalOperationError("Only owner, root, or self can kick from a group."));
+    }
 
-   groupInfo.Users[targetUser] = true;
-   this.cache.CacheGroupPut(groupInfo);
+    if (!groupInfo.Members[targetUser]) {
+        return nil;
+    }
 
-   return nil;
+    // If the owner was kicked, root becomes the new owner.
+    // However, usergroups cannot kick/change owners.
+    if (targetUser == groupInfo.Owner) {
+        groupInfo.Owner = identity.ROOT_USER_ID;
+    }
+
+    delete(groupInfo.Members, targetUser);
+    this.cache.CacheGroupPut(groupInfo);
+
+    return nil;
 }
 
-func (this *Driver) KickUser(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
-   groupInfo, ok := this.groups[groupId];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Cannot kick from an unknown group."));
-   }
+// Promote a user to be the owner of a group.
+func (this *Driver) PromoteUser(contextUser identity.UserId, targetUser identity.UserId, groupId identity.GroupId) error {
+    groupInfo, ok := this.groups[groupId];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Cannot promote in unknown group."));
+    }
 
-   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
-   if (err != nil) {
-      return errors.WithStack(err);
-   }
+    if (groupInfo.Owner == targetUser) {
+        return nil;
+    }
 
-   _, ok = this.users[targetUser];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Kick candidate does not exist."));
-   }
+    // Usergroups cannot have a different owner.
+    if (groupInfo.IsUsergroup) {
+        return errors.WithStack(NewIllegalOperationError("Usergroups cannot have a different owner."));
+    }
 
-   if (!groupInfo.Users[targetUser]) {
-      return nil;
-   }
+    _, ok = this.users[targetUser];
+    if (!ok) {
+        return errors.WithStack(NewIllegalOperationError("Promotion candidate does not exist."));
+    }
 
-   // Only root can kick an admin.
-   if (contextUser != user.ROOT_ID && groupInfo.Admins[targetUser]) {
-      return errors.WithStack(NewIllegalOperationError("Only root can kick an admin."));
-   }
+    // Only the owner or root can promote.
+    if (contextUser != groupInfo.Owner || contextUser != identity.ROOT_USER_ID) {
+        return errors.WithStack(NewIllegalOperationError("Only owner or root can add to a group."));
+    }
 
-   delete(groupInfo.Users, targetUser);
-   this.cache.CacheGroupPut(groupInfo);
+    // The candidate must already be in the group.
+    if (!groupInfo.Members[targetUser]) {
+        return errors.WithStack(NewIllegalOperationError("Promotion candidate is not a member of the group."));
+    }
 
-   return nil;
-}
+    groupInfo.Owner = targetUser;
+    this.cache.CacheGroupPut(groupInfo);
 
-func (this *Driver) PromoteUser(contextUser user.Id, targetUser user.Id, groupId group.Id) error {
-   groupInfo, ok := this.groups[groupId];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Cannot promote in unknown group."));
-   }
-
-   err := this.checkGroupAdminPermissions(contextUser, groupInfo);
-   if (err != nil) {
-      return errors.WithStack(err);
-   }
-
-   _, ok = this.users[targetUser];
-   if (!ok) {
-      return errors.WithStack(NewIllegalOperationError("Promotion candidate does not exist."));
-   }
-
-   if (!groupInfo.Users[targetUser]) {
-      return errors.WithStack(NewIllegalOperationError("Promotion candidate is not a member of the group."));
-   }
-
-   if (groupInfo.Admins[targetUser]) {
-      return nil;
-   }
-
-   groupInfo.Admins[targetUser] = true;
-   this.cache.CacheGroupPut(groupInfo);
-
-   return nil;
+    return nil;
 }
 
 // Go through the entire FAT and ensure that there are no traces of this group.
-func (this *Driver) purgeGroup(groupId group.Id) {
-   for _, direntInfo := range(this.fat) {
-      _, ok := direntInfo.GroupPermissions[groupId];
-      if (ok) {
-         delete(direntInfo.GroupPermissions, groupId);
-         this.cache.CacheDirentPut(direntInfo);
-      }
-   }
+// When a group is removed, the dirent get's the owner's usergroup.
+func (this *Driver) purgeGroup(groupId identity.GroupId) {
+    for _, direntInfo := range(this.fat) {
+        if (direntInfo.Group == groupId) {
+            direntInfo.Group = this.users[direntInfo.Owner].Usergroup;
+        }
+    }
 }

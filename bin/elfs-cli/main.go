@@ -10,7 +10,7 @@ import (
    shellquote "github.com/kballard/go-shellquote"
 
    "github.com/eriq-augustine/elfs/driver"
-   "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/identity"
    "github.com/eriq-augustine/elfs/util"
 )
 
@@ -43,7 +43,7 @@ func main() {
             break;
         }
 
-        err := processCommand(fsDriver, &activeUser, command);
+        err := processCommand(fsDriver, activeUser, command);
         if (err != nil) {
             fmt.Println("Failed to run command:");
             fmt.Printf("%+v\n", err);
@@ -52,7 +52,7 @@ func main() {
     fmt.Println("");
 }
 
-func processCommand(fsDriver *driver.Driver, activeUser **user.User, input string) error {
+func processCommand(fsDriver *driver.Driver, activeUser *identity.User, input string) error {
    args, err := shellquote.Split(input);
    if (err != nil) {
       return errors.Wrap(err, "Failed to split command.");
@@ -72,7 +72,7 @@ func processCommand(fsDriver *driver.Driver, activeUser **user.User, input strin
       return nil;
    }
 
-   err = commandInfo.Function(fsDriver, *activeUser, args);
+   err = commandInfo.Function(fsDriver, activeUser, args);
    if (err != nil) {
       return errors.WithStack(err);
    }

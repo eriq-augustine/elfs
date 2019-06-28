@@ -24,8 +24,6 @@ import (
     "golang.org/x/net/context"
 
     "github.com/eriq-augustine/elfs/cipherio"
-    "github.com/eriq-augustine/elfs/dirent"
-    "github.com/eriq-augustine/elfs/group"
     "github.com/eriq-augustine/elfs/util"
 )
 
@@ -53,23 +51,25 @@ func (this fuseDirent) Access(ctx context.Context, request *fuse.AccessRequest) 
         return nil;
     }
 
+    group, ok := this.driver.GetGroups()[this.dirent.Group];
+    if (!ok) {
+        return errors.Errorf("Unable to find the group (%d) for dirent (%s).", int(this.dirent.Group), string(this.dirent.Id));
+    }
+
     if (request.Mask & ACCESS_R_OK != 0) {
-        if (!this.dirent.CanRead(this.user.Id, this.driver.GetGroups())) {
+        if (!this.dirent.CanRead(this.user, group)) {
             return fuse.EPERM;
         }
     }
 
     if (request.Mask & ACCESS_W_OK != 0) {
-        if (!this.dirent.CanWrite(this.user.Id, this.driver.GetGroups())) {
+        if (!this.dirent.CanWrite(this.user, group)) {
             return fuse.EPERM;
         }
     }
 
     if (request.Mask & ACCESS_X_OK != 0) {
-        // We don't allow execure on elfs.
-        // However, `man 3p access` indicates that we can be generous with execute.
-        // So, just check for read instead.
-        if (!this.dirent.CanRead(this.user.Id, this.driver.GetGroups())) {
+        if (!this.dirent.CanExecute(this.user, group)) {
             return fuse.EPERM;
         }
     }
@@ -87,12 +87,12 @@ func (this fuseDirent) Attr(ctx context.Context, attr *fuse.Attr) error {
     attr.Crtime = time.Unix(this.dirent.CreateTimestamp, 0);
     attr.Nlink = 1;
     attr.Uid = uint32(this.dirent.Owner);
-    attr.Gid = 0;  // Group permissions are more of an ACL.
+    attr.Gid = uint32(this.dirent.Group);
     // attr.Rdev
     // attr.Flags
     attr.BlockSize = cipherio.IO_BLOCK_SIZE;
 
-    var mode os.FileMode = os.FileMode(this.dirent.UnixPermissions());
+    var mode os.FileMode = os.FileMode(this.dirent.Permissions);
     if (!this.dirent.IsFile) {
         mode |= os.ModeDir;
     }
@@ -106,10 +106,11 @@ func (this fuseDirent) Create(ctx context.Context, request *fuse.CreateRequest, 
     // We will just ignore the flags, mode, and umask.
     // Since all our operations are complete, we will just write an empty file.
 
-    var data []byte = make([]byte, 0);
-    var groupPermissions map[group.Id]group.Permission = make(map[group.Id]group.Permission);
+    // TODO(eriq): Obey the permissions from the request.
 
-    newFileId, err := this.driver.Put(this.user.Id, request.Name, bytes.NewReader(data), groupPermissions, this.dirent.Id);
+    var data []byte = make([]byte, 0);
+
+    newFileId, err := this.driver.Put(this.user.Id, request.Name, bytes.NewReader(data), this.dirent.Id);
     if (err != nil) {
         return nil, nil, errors.Wrap(err, "Unable to create file: " + request.Name);
     }
@@ -135,7 +136,11 @@ func (this fuseDirent) Lookup(ctx context.Context, name string) (fs.Node, error)
         return nil, fuse.ENOENT;
     }
 
-    var child *dirent.Dirent = this.driver.FetchChildByName(name, this.dirent.Id);
+    child, err := this.driver.FetchChildByName(this.user.Id, this.dirent.Id, name);
+    if (err != nil) {
+        return nil, errors.WithStack(err);
+    }
+
     if (child == nil) {
         return nil, fuse.ENOENT;
     }
@@ -146,9 +151,9 @@ func (this fuseDirent) Lookup(ctx context.Context, name string) (fs.Node, error)
 func (this fuseDirent) Mkdir(ctx context.Context, request *fuse.MkdirRequest) (fs.Node, error) {
     // Ignore the mode and umask.
 
-    var groupPermissions map[group.Id]group.Permission = make(map[group.Id]group.Permission);
+    // TODO(eriq): Obey the permissions from the request.
 
-    newDirId, err := this.driver.MakeDir(this.user.Id, request.Name, this.dirent.Id, groupPermissions);
+    newDirId, err := this.driver.MakeDir(this.user.Id, request.Name, this.dirent.Id);
     if (err != nil) {
         return nil, errors.Wrap(err, "Unable to create dir: " + request.Name);
     }
@@ -164,12 +169,15 @@ func (this fuseDirent) Mkdir(ctx context.Context, request *fuse.MkdirRequest) (f
 }
 
 func (this fuseDirent) Remove(ctx context.Context, request *fuse.RemoveRequest) error {
-    var child *dirent.Dirent = this.driver.FetchChildByName(request.Name, this.dirent.Id);
+    child, err := this.driver.FetchChildByName(this.user.Id, this.dirent.Id, request.Name);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
+
     if (child == nil) {
         return fuse.ENOENT;
     }
 
-    var err error = nil;
     if (child.IsFile) {
         err = this.driver.RemoveFile(this.user.Id, child.Id);
     } else {
@@ -185,7 +193,11 @@ func (this fuseDirent) Rename(ctx context.Context, request *fuse.RenameRequest, 
     var err error;
     var newParent fuseDirent = newDir.(fuseDirent);
 
-    var child *dirent.Dirent = this.driver.FetchChildByName(request.OldName, this.dirent.Id);
+    child, err := this.driver.FetchChildByName(this.user.Id, this.dirent.Id, request.OldName);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
+
     if (child == nil) {
         return fuse.ENOENT;
     }

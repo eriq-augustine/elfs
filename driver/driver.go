@@ -13,8 +13,7 @@ import (
    "github.com/eriq-augustine/elfs/cache"
    "github.com/eriq-augustine/elfs/connector"
    "github.com/eriq-augustine/elfs/dirent"
-   "github.com/eriq-augustine/elfs/group"
-   "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/identity"
 )
 
 type Driver struct {
@@ -23,9 +22,9 @@ type Driver struct {
    fatVersion int
    fat map[dirent.Id]*dirent.Dirent
    usersVersion int
-   users map[user.Id]*user.User
+   users map[identity.UserId]*identity.User
    groupsVersion int
-   groups map[group.Id]*group.Group
+   groups map[identity.GroupId]*identity.Group
    cache *cache.MetadataCache
    // A map of all directories to their children.
    dirs map[dirent.Id][]*dirent.Dirent
@@ -54,9 +53,9 @@ func newDriver(key []byte, iv []byte, connector connector.Connector) (*Driver, e
       fatVersion: 0,
       fat: make(map[dirent.Id]*dirent.Dirent),
       usersVersion: 0,
-      users: make(map[user.Id]*user.User),
+      users: make(map[identity.UserId]*identity.User),
       groupsVersion: 0,
-      groups: make(map[group.Id]*group.Group),
+      groups: make(map[identity.GroupId]*identity.Group),
       cache: nil,
       dirs: make(map[dirent.Id][]*dirent.Dirent),
       iv: iv,

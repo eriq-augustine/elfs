@@ -14,7 +14,7 @@ import (
 
     "github.com/eriq-augustine/elfs/dirent"
     "github.com/eriq-augustine/elfs/driver"
-    "github.com/eriq-augustine/elfs/user"
+    "github.com/eriq-augustine/elfs/identity"
     "github.com/eriq-augustine/elfs/util"
 )
 
@@ -128,7 +128,7 @@ func mount(mountpoint string, readonly bool) (*fuse.Conn, error) {
 //  - fs.FS
 type fuseFS struct {
     driver *driver.Driver
-    user *user.User
+    user *identity.User
 }
 
 func (this fuseFS) Root() (fs.Node, error) {

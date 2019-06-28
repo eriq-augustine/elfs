@@ -5,11 +5,11 @@ import (
    "strings"
 
    "github.com/eriq-augustine/elfs/driver"
-   "github.com/eriq-augustine/elfs/user"
+   "github.com/eriq-augustine/elfs/identity"
 )
 
 // Params: (fs driver, args (not including invocation)).
-type commandFunction func(*driver.Driver, *user.User, []string) (error);
+type commandFunction func(*driver.Driver, *identity.User, []string) (error);
 
 type commandArg struct {
    Description string

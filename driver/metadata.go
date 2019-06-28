@@ -6,9 +6,8 @@ import (
    "github.com/pkg/errors"
 
    "github.com/eriq-augustine/elfs/dirent"
-   "github.com/eriq-augustine/elfs/group"
+   "github.com/eriq-augustine/elfs/identity"
    "github.com/eriq-augustine/elfs/metadata"
-   "github.com/eriq-augustine/elfs/user"
    "github.com/eriq-augustine/elfs/util"
 )
 
@@ -68,7 +67,7 @@ func (this *Driver) readGroups() error {
       return errors.WithStack(err);
    }
 
-   this.groups = make(map[group.Id]*group.Group);
+   this.groups = make(map[identity.GroupId]*identity.Group);
 
    // Metadata takes ownership of reader.
    version, err := metadata.ReadGroups(this.groups, reader);
@@ -88,7 +87,7 @@ func (this *Driver) readUsers() error {
       return errors.WithStack(err);
    }
 
-   this.users = make(map[user.Id]*user.User);
+   this.users = make(map[identity.UserId]*identity.User);
 
    // Metadata takes ownership of reader.
    version, err := metadata.ReadUsers(this.users, reader);

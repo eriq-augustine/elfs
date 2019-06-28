@@ -15,7 +15,7 @@ import (
 const (
    // If we have file systems in the wild, we will need to make sure we
    // are looking at consistent structure.
-   FORMAT_VERSION = 0
+   FORMAT_VERSION = 1
 )
 
 // Scan the metadata elements of the metadata file.
