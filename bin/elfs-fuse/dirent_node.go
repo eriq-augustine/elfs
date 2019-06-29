@@ -8,9 +8,11 @@ package main
 //  - fs.NodeAccesser
 //  - fs.NodeCreater
 //  - fs.NodeFsyncer
+//  - fs.NodeGetattrer
 //  - fs.NodeMkdirer
 //  - fs.NodeRemover
 //  - fs.NodeRenamer
+//  - fs.NodeSetattreattr
 //  - fs.NodeStringLookuper
 
 import (
@@ -24,6 +26,8 @@ import (
     "golang.org/x/net/context"
 
     "github.com/eriq-augustine/elfs/cipherio"
+    "github.com/eriq-augustine/elfs/dirent"
+    "github.com/eriq-augustine/elfs/identity"
     "github.com/eriq-augustine/elfs/util"
 )
 
@@ -131,6 +135,10 @@ func (this fuseDirent) Fsync(ctx context.Context, request *fuse.FsyncRequest) er
     return nil;
 }
 
+func (this fuseDirent) Getattr(ctx context.Context, request *fuse.GetattrRequest, response *fuse.GetattrResponse) error {
+    return errors.WithStack(this.Attr(ctx, &response.Attr));
+}
+
 func (this fuseDirent) Lookup(ctx context.Context, name string) (fs.Node, error) {
     if (this.dirent.IsFile) {
         return nil, fuse.ENOENT;
@@ -216,6 +224,62 @@ func (this fuseDirent) Rename(ctx context.Context, request *fuse.RenameRequest, 
         if (err != nil) {
             return errors.WithStack(err);
         }
+    }
+
+    return nil;
+}
+
+func (this fuseDirent) Setattr(ctx context.Context, request *fuse.SetattrRequest, response *fuse.SetattrResponse) error {
+    // Start with the existing attributes.
+    err := this.Attr(ctx, &response.Attr);
+    if (err != nil) {
+        return errors.WithStack(err);
+    }
+
+    if (request.Valid & fuse.SetattrMode != 0) {
+        // Permissions.
+        var perms dirent.Permissions = dirent.PermissionsFromFileMode(request.Mode);
+
+        err = this.driver.ChangePermissions(this.user.Id, this.dirent.Id, perms);
+        if (err != nil) {
+            return errors.WithStack(err);
+        }
+    }
+
+    if (request.Valid & fuse.SetattrUid != 0) {
+        // Owner.
+        err = this.driver.ChangeOwner(this.user.Id, this.dirent.Id, identity.UserId(request.Uid));
+        if (err != nil) {
+            return errors.WithStack(err);
+        }
+    }
+
+    if (request.Valid & fuse.SetattrGid != 0) {
+        // Group.
+        err = this.driver.ChangeGroup(this.user.Id, this.dirent.Id, identity.GroupId(request.Gid));
+        if (err != nil) {
+            return errors.WithStack(err);
+        }
+    }
+
+    if (request.Valid & fuse.SetattrSize != 0) {
+        // Size.
+        // Ignore, we only want to change size through writes.
+    }
+
+    if (request.Valid & fuse.SetattrAtime != 0) {
+        // Access time.
+        // Ignore, we already handle this internally.
+    }
+
+    if (request.Valid & fuse.SetattrMtime != 0) {
+        // Mod time.
+        // Ignore, we already handle this internally.
+    }
+
+    if (request.Valid & fuse.SetattrHandle != 0) {
+        // Handle.
+        // Ignore, we don't use handles.
     }
 
     return nil;

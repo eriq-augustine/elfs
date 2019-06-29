@@ -1,6 +1,7 @@
 package dirent;
 
 import (
+    "os"
     "strconv"
     "strings"
 
@@ -72,6 +73,36 @@ func (this Permissions) buildPermissionTriad(builder *strings.Builder,
     } else {
         builder.WriteString("-");
     }
+}
+
+func PermissionsFromFileMode(mode os.FileMode) Permissions {
+    var perms Permissions = EMPTY_PERMISSIONS;
+
+    perms = checkFileModePerm(perms, mode, os.ModeSetuid, PERM_SU);
+    perms = checkFileModePerm(perms, mode, os.ModeSetgid, PERM_SG);
+    perms = checkFileModePerm(perms, mode, os.ModeSticky, PERM_ST);
+
+    perms = checkFileModePerm(perms, mode, os.FileMode(0400), PERM_UR);
+    perms = checkFileModePerm(perms, mode, os.FileMode(0200), PERM_UW);
+    perms = checkFileModePerm(perms, mode, os.FileMode(0100), PERM_UX);
+
+    perms = checkFileModePerm(perms, mode, os.FileMode(0040), PERM_GR);
+    perms = checkFileModePerm(perms, mode, os.FileMode(0020), PERM_GW);
+    perms = checkFileModePerm(perms, mode, os.FileMode(0010), PERM_GX);
+
+    perms = checkFileModePerm(perms, mode, os.FileMode(0004), PERM_OR);
+    perms = checkFileModePerm(perms, mode, os.FileMode(0002), PERM_OW);
+    perms = checkFileModePerm(perms, mode, os.FileMode(0001), PERM_OX);
+
+    return perms;
+}
+
+func checkFileModePerm(perms Permissions, mode os.FileMode, osPermission os.FileMode, elfsPermission Permissions) Permissions {
+    if (mode & osPermission != 0) {
+        perms |= elfsPermission;
+    }
+
+    return perms;
 }
 
 // Convert a string of the style: 775 in permissions.
