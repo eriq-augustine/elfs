@@ -14,6 +14,10 @@ import (
 const (
    CONNECTOR_TYPE_LOCAL = "local"
    CONNECTOR_TYPE_S3 = "s3"
+
+   FS_SYS_DIR_ADMIN = "admin"
+   FS_SYS_DIR_DATA = "data"
+   DATA_GROUP_PREFIX_LEN = 1
 )
 
 type Connector interface {
