@@ -1,7 +1,8 @@
 package identity;
 
 import (
-    "github.com/eriq-augustine/golog"
+    "fmt"
+
     "golang.org/x/crypto/bcrypt"
 )
 
@@ -26,8 +27,7 @@ func NewUser(
     // Check that the hash is clean.
     bcryptHash, err := bcrypt.GenerateFromPassword([]byte(weakhash), bcrypt.DefaultCost);
     if (err != nil) {
-        golog.ErrorE("Could not generate bcrypt hash", err);
-        return nil, nil, err;
+        return nil, nil, fmt.Errorf("Could not generate bcrypt hash: %w", err);
     }
 
     // Make the usergroup.

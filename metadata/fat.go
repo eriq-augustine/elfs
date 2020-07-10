@@ -75,12 +75,12 @@ func WriteFat(fat map[dirent.Id]*dirent.Dirent, version int, writer *cipherio.Ci
    for i, entry := range(fat) {
       line, err := json.Marshal(entry);
       if (err != nil) {
-         return errors.Wrapf(err, "Failed to marshal FAT entry %d.", i);
+         return errors.Wrapf(err, "Failed to marshal FAT entry %v.", i);
       }
 
       _, err = writer.Write([]byte(fmt.Sprintf("%s\n", string(line))));
       if (err != nil) {
-         return errors.Wrapf(err, "Failed to write FAT entry %d.", i);
+         return errors.Wrapf(err, "Failed to write FAT entry %v.", i);
       }
    }
 

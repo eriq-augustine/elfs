@@ -3,11 +3,9 @@ package util;
 import (
    "crypto/aes"
    "crypto/cipher"
-   "crypto/rand"
    "crypto/sha256"
    "encoding/hex"
 
-   "github.com/eriq-augustine/golog"
    "github.com/pkg/errors"
 )
 
@@ -17,36 +15,21 @@ const (
    IV_LENGTH = 12  // Pretty standard size (bytes).
 )
 
-// Generate some crypto random bytes.
-func GenBytes(length int) []byte {
-   if (length <= 0) {
-      golog.Panic("Number of random bytes must be positive");
-   }
-
-   bytes := make([]byte, length);
-   _, err := rand.Read(bytes);
-   if (err != nil) {
-      golog.PanicE("Unable to generate random bytes", err);
-   }
-
-   return bytes
-}
-
 // Generate a key (random bytes) of the given length (in bytes).
 func GenKey(length int) []byte {
    if (length == 0) {
       length = DEFAULT_KEY_LENGTH;
    }
 
-   return GenBytes(length);
+   return RandomBytes(length);
 }
 
 func GenAESKey() []byte {
-   return GenBytes(AES_KEY_LENGTH);
+   return RandomBytes(AES_KEY_LENGTH);
 }
 
 func GenIV() []byte {
-   return GenBytes(IV_LENGTH);
+   return RandomBytes(IV_LENGTH);
 }
 
 // Get the SHA2-256 string.
